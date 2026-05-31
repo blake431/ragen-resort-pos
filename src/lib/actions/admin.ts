@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { generatePurchaseNumber } from "@/lib/utils";
 import { ExpenseCategory, PurchaseStatus } from "@prisma/client";
 import { getDateRange } from "@/lib/utils";
+import { AppError } from "@/lib/app-error";
 
 export async function getExpenses(filter = "month") {
   const { start, end } = getDateRange(filter === "today" ? "today" : filter === "week" ? "week" : "month");
@@ -28,6 +29,25 @@ export async function createExpense(data: {
 
   const expense = await prisma.expense.create({ data });
   await logActivity("CREATE", "Expense", expense.id);
+  revalidatePath("/expenses");
+  return expense;
+}
+
+export async function updateExpense(
+  id: string,
+  data: Partial<{
+    category: ExpenseCategory;
+    description: string;
+    amount: number;
+    date: Date;
+    reference: string;
+  }>
+) {
+  const session = await getSession();
+  if (session?.user?.role !== "ADMIN") throw new AppError("Unauthorized");
+
+  const expense = await prisma.expense.update({ where: { id }, data });
+  await logActivity("UPDATE", "Expense", id);
   revalidatePath("/expenses");
   return expense;
 }
@@ -64,7 +84,6 @@ export async function getExpenseSummary() {
 
 export async function getSuppliers() {
   return prisma.supplier.findMany({
-    where: { active: true },
     orderBy: { name: "asc" },
   });
 }
@@ -82,6 +101,35 @@ export async function createSupplier(data: {
   await logActivity("CREATE", "Supplier", supplier.id);
   revalidatePath("/purchases");
   return supplier;
+}
+
+export async function updateSupplier(
+  id: string,
+  data: Partial<{ name: string; phone: string; email: string; address: string; active: boolean }>
+) {
+  const session = await getSession();
+  if (session?.user?.role !== "ADMIN") throw new AppError("Unauthorized");
+
+  const supplier = await prisma.supplier.update({ where: { id }, data });
+  await logActivity("UPDATE", "Supplier", id, supplier.name);
+  revalidatePath("/purchases");
+  return supplier;
+}
+
+export async function deleteSupplier(id: string) {
+  const session = await getSession();
+  if (session?.user?.role !== "ADMIN") throw new AppError("Unauthorized");
+
+  const pending = await prisma.purchase.count({
+    where: { supplierId: id, status: PurchaseStatus.PENDING },
+  });
+  if (pending > 0) {
+    throw new AppError("Cannot delete supplier — pending purchase orders exist.");
+  }
+
+  await prisma.supplier.update({ where: { id }, data: { active: false } });
+  await logActivity("DELETE", "Supplier", id, "Deactivated");
+  revalidatePath("/purchases");
 }
 
 export async function getPurchases() {
@@ -167,6 +215,54 @@ export async function receivePurchase(id: string) {
   revalidatePath("/inventory");
 }
 
+export async function deletePurchase(id: string) {
+  const session = await getSession();
+  if (session?.user?.role !== "ADMIN") throw new AppError("Unauthorized");
+
+  const purchase = await prisma.purchase.findUnique({
+    where: { id },
+    include: { items: true },
+  });
+  if (!purchase) throw new AppError("Purchase not found");
+
+  if (purchase.status === PurchaseStatus.RECEIVED) {
+    await prisma.$transaction(async (tx) => {
+      for (const item of purchase.items) {
+        const product = await tx.product.findUnique({ where: { id: item.productId } });
+        if (!product) continue;
+        const newStock = Math.max(0, product.stock - item.quantity);
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: newStock },
+        });
+        await tx.inventoryMovement.create({
+          data: {
+            productId: item.productId,
+            type: "STOCK_OUT",
+            quantity: -item.quantity,
+            reason: "Purchase deleted — stock reversed",
+            reference: purchase.purchaseNumber,
+            userId: session!.user!.id,
+          },
+        });
+      }
+      await tx.purchase.update({
+        where: { id },
+        data: { status: PurchaseStatus.CANCELLED },
+      });
+    });
+    await logActivity("DELETE", "Purchase", id, `${purchase.purchaseNumber} — stock reversed`);
+  } else if (purchase.status === PurchaseStatus.PENDING) {
+    await prisma.purchase.delete({ where: { id } });
+    await logActivity("DELETE", "Purchase", id, purchase.purchaseNumber);
+  } else {
+    throw new AppError("Purchase is already cancelled.");
+  }
+
+  revalidatePath("/purchases");
+  revalidatePath("/inventory");
+}
+
 export async function getSalesReport(filter: string, startDate?: Date, endDate?: Date) {
   let start: Date;
   let end: Date;
@@ -246,7 +342,7 @@ export async function getCashierPerformance(filter: string) {
 
 export async function getInventoryReport() {
   const products = await prisma.product.findMany({
-    where: { status: "ACTIVE" },
+    where: { isActive: true, deletedAt: null, status: "ACTIVE" },
     include: { category: true },
     orderBy: { name: "asc" },
   });
@@ -337,7 +433,19 @@ export async function updateUser(
   data: Partial<{ name: string; email: string; role: string; active: boolean; password?: string }>
 ) {
   const session = await getSession();
-  if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+  if (session?.user?.role !== "ADMIN") throw new AppError("Unauthorized");
+
+  if (data.active === false) {
+    const existing = await prisma.user.findUnique({ where: { id } });
+    if (existing?.role === "ADMIN") {
+      const otherAdmins = await prisma.user.count({
+        where: { role: "ADMIN", active: true, id: { not: id } },
+      });
+      if (otherAdmins === 0) {
+        throw new AppError("Cannot deactivate the last admin account.");
+      }
+    }
+  }
 
   const updateData: Record<string, unknown> = { ...data };
   delete updateData.password;

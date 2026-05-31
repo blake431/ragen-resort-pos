@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getSession, logActivity } from "./dashboard";
 import { revalidatePath } from "next/cache";
 import { BookingStatus, RoomStatus } from "@prisma/client";
+import { AppError } from "@/lib/app-error";
 
 export async function getRooms() {
   return prisma.room.findMany({
@@ -85,6 +86,30 @@ export async function updateRoomStatus(id: string, status: RoomStatus) {
 
   await prisma.room.update({ where: { id }, data: { status } });
   await logActivity("UPDATE", "Room", id, `Status: ${status}`);
+  revalidatePath("/rooms");
+}
+
+export async function deleteRoom(id: string) {
+  const session = await getSession();
+  if (!["ADMIN", "ROOM_MANAGER"].includes(session?.user?.role || "")) {
+    throw new AppError("Unauthorized");
+  }
+
+  const activeBookings = await prisma.booking.count({
+    where: {
+      roomId: id,
+      status: { in: [BookingStatus.RESERVED, BookingStatus.CHECKED_IN] },
+    },
+  });
+  if (activeBookings > 0) {
+    throw new AppError("Cannot delete room — it has an active or reserved booking.");
+  }
+
+  const room = await prisma.room.findUnique({ where: { id } });
+  if (!room) throw new AppError("Room not found");
+
+  await prisma.room.delete({ where: { id } });
+  await logActivity("DELETE", "Room", id, room.number);
   revalidatePath("/rooms");
 }
 
@@ -242,6 +267,24 @@ export async function cancelBooking(id: string) {
   revalidatePath("/rooms");
 }
 
+export async function deleteBooking(id: string) {
+  const session = await getSession();
+  if (!["ADMIN", "ROOM_MANAGER"].includes(session?.user?.role || "")) {
+    throw new AppError("Unauthorized");
+  }
+
+  const booking = await prisma.booking.findUnique({ where: { id } });
+  if (!booking) throw new AppError("Booking not found");
+
+  if (booking.status !== BookingStatus.CANCELLED) {
+    throw new AppError("Only cancelled bookings can be deleted.");
+  }
+
+  await prisma.booking.delete({ where: { id } });
+  await logActivity("DELETE", "Booking", id);
+  revalidatePath("/bookings");
+}
+
 export async function addRoomCharge(data: {
   bookingId: string;
   roomId: string;
@@ -273,6 +316,47 @@ export async function addRoomCharge(data: {
   await logActivity("CREATE", "RoomCharge", charge.id);
   revalidatePath("/room-charges");
   return charge;
+}
+
+export async function updateRoomCharge(
+  id: string,
+  data: Partial<{ description: string; quantity: number; unitPrice: number; type: string }>
+) {
+  const session = await getSession();
+  if (!session?.user?.id) throw new AppError("Unauthorized");
+
+  const existing = await prisma.roomCharge.findUnique({ where: { id } });
+  if (!existing) throw new AppError("Charge not found");
+
+  const quantity = data.quantity ?? existing.quantity;
+  const unitPrice = data.unitPrice ?? existing.unitPrice;
+
+  const charge = await prisma.roomCharge.update({
+    where: { id },
+    data: {
+      ...data,
+      type: data.type as typeof existing.type | undefined,
+      quantity,
+      unitPrice,
+      total: quantity * unitPrice,
+    },
+  });
+
+  await logActivity("UPDATE", "RoomCharge", id);
+  revalidatePath("/room-charges");
+  return charge;
+}
+
+export async function deleteRoomCharge(id: string) {
+  const session = await getSession();
+  if (!session?.user?.id) throw new AppError("Unauthorized");
+
+  const charge = await prisma.roomCharge.findUnique({ where: { id } });
+  if (!charge) throw new AppError("Charge not found");
+
+  await prisma.roomCharge.delete({ where: { id } });
+  await logActivity("DELETE", "RoomCharge", id, charge.description);
+  revalidatePath("/room-charges");
 }
 
 export async function getActiveBookings() {

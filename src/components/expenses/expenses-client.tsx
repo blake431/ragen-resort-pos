@@ -7,24 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { createExpense, deleteExpense } from "@/lib/actions/admin";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { createExpense, updateExpense, deleteExpense } from "@/lib/actions/admin";
 import { formatCurrency, formatDateOnly } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/app-error";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Wallet } from "lucide-react";
+import { Plus, Trash2, Pencil, Wallet } from "lucide-react";
 import { ExpenseCategory } from "@prisma/client";
 
 interface ExpensesClientProps {
@@ -40,17 +31,14 @@ interface ExpensesClientProps {
 }
 
 const categoryLabels: Record<string, string> = {
-  FUEL: "Fuel",
-  ELECTRICITY: "Electricity",
-  WATER: "Water",
-  STAFF: "Staff",
-  MAINTENANCE: "Maintenance",
-  PURCHASES: "Purchases",
-  OTHER: "Other",
+  FUEL: "Fuel", ELECTRICITY: "Electricity", WATER: "Water", STAFF: "Staff",
+  MAINTENANCE: "Maintenance", PURCHASES: "Purchases", OTHER: "Other",
 };
 
 export function ExpensesClient({ expenses, summary }: ExpensesClientProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<ExpensesClientProps["expenses"][0] | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
@@ -59,19 +47,26 @@ export function ExpensesClient({ expenses, summary }: ExpensesClientProps) {
     e.preventDefault();
     setLoading(true);
     const form = new FormData(e.currentTarget);
+    const data = {
+      category: form.get("category") as ExpenseCategory,
+      description: form.get("description") as string,
+      amount: Number(form.get("amount")),
+      date: form.get("date") ? new Date(form.get("date") as string) : undefined,
+      reference: (form.get("reference") as string) || undefined,
+    };
     try {
-      await createExpense({
-        category: form.get("category") as ExpenseCategory,
-        description: form.get("description") as string,
-        amount: Number(form.get("amount")),
-        date: form.get("date") ? new Date(form.get("date") as string) : undefined,
-        reference: (form.get("reference") as string) || undefined,
-      });
-      toast({ title: "Expense recorded" });
+      if (editing) {
+        await updateExpense(editing.id, data);
+        toast({ title: "Expense updated" });
+      } else {
+        await createExpense(data);
+        toast({ title: "Expense recorded" });
+      }
       setDialogOpen(false);
+      setEditing(null);
       router.refresh();
-    } catch {
-      toast({ title: "Error", variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -80,7 +75,7 @@ export function ExpensesClient({ expenses, summary }: ExpensesClientProps) {
   return (
     <div>
       <PageHeader title="Expenses" description="Track business expenses">
-        <Button variant="gold" onClick={() => setDialogOpen(true)}>
+        <Button variant="gold" onClick={() => { setEditing(null); setDialogOpen(true); }}>
           <Plus className="h-4 w-4 mr-1" /> Add Expense
         </Button>
       </PageHeader>
@@ -101,13 +96,12 @@ export function ExpensesClient({ expenses, summary }: ExpensesClientProps) {
                 </div>
                 <p className="text-sm text-muted-foreground">{formatDateOnly(expense.date)}</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <span className="font-bold text-red-400">{formatCurrency(expense.amount)}</span>
-                <Button size="icon" variant="ghost" className="text-destructive" onClick={async () => {
-                  await deleteExpense(expense.id);
-                  router.refresh();
-                  toast({ title: "Expense deleted" });
-                }}>
+                <Button size="icon" variant="ghost" onClick={() => { setEditing(expense); setDialogOpen(true); }}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setDeleteId(expense.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -118,11 +112,11 @@ export function ExpensesClient({ expenses, summary }: ExpensesClientProps) {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="font-serif">Add Expense</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-serif">{editing ? "Edit Expense" : "Add Expense"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>Category</Label>
-              <Select name="category" defaultValue="OTHER">
+              <Select name="category" defaultValue={editing?.category || "OTHER"}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(categoryLabels).map(([k, v]) => (
@@ -131,14 +125,34 @@ export function ExpensesClient({ expenses, summary }: ExpensesClientProps) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2"><Label>Description</Label><Input name="description" required /></div>
-            <div className="space-y-2"><Label>Amount (KES)</Label><Input name="amount" type="number" required /></div>
-            <div className="space-y-2"><Label>Date</Label><Input name="date" type="date" defaultValue={new Date().toISOString().split("T")[0]} /></div>
-            <div className="space-y-2"><Label>Reference</Label><Input name="reference" /></div>
-            <Button type="submit" variant="gold" className="w-full" disabled={loading}>Save Expense</Button>
+            <div className="space-y-2"><Label>Description</Label><Input name="description" required defaultValue={editing?.description} /></div>
+            <div className="space-y-2"><Label>Amount (KES)</Label><Input name="amount" type="number" required defaultValue={editing?.amount} /></div>
+            <div className="space-y-2"><Label>Date</Label><Input name="date" type="date" defaultValue={editing ? new Date(editing.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]} /></div>
+            <div className="space-y-2"><Label>Reference</Label><Input name="reference" defaultValue={editing?.reference || ""} /></div>
+            <Button type="submit" variant="gold" className="w-full" disabled={loading}>{editing ? "Update" : "Save"} Expense</Button>
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        loading={loading}
+        onConfirm={async () => {
+          if (!deleteId) return;
+          setLoading(true);
+          try {
+            await deleteExpense(deleteId);
+            toast({ title: "Expense deleted" });
+            setDeleteId(null);
+            router.refresh();
+          } catch (err) {
+            toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+          } finally {
+            setLoading(false);
+          }
+        }}
+      />
     </div>
   );
 }

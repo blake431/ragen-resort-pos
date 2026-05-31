@@ -20,11 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createRoom, updateRoomStatus } from "@/lib/actions/rooms";
+import { createRoom, updateRoom, updateRoomStatus, deleteRoom } from "@/lib/actions/rooms";
 import { formatCurrency, ROOM_STATUS_COLORS, ROOM_STATUS_LABELS } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/app-error";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { RoomStatus } from "@prisma/client";
 
 interface RoomsClientProps {
@@ -43,28 +45,37 @@ interface RoomsClientProps {
 
 export function RoomsClient({ rooms }: RoomsClientProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<RoomsClientProps["rooms"][0] | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
-  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     const form = new FormData(e.currentTarget);
+    const data = {
+      number: form.get("number") as string,
+      type: form.get("type") as string,
+      pricePerNight: Number(form.get("pricePerNight")),
+      capacity: Number(form.get("capacity")),
+      description: (form.get("description") as string) || undefined,
+      floor: Number(form.get("floor")) || 1,
+    };
     try {
-      await createRoom({
-        number: form.get("number") as string,
-        type: form.get("type") as string,
-        pricePerNight: Number(form.get("pricePerNight")),
-        capacity: Number(form.get("capacity")),
-        description: (form.get("description") as string) || undefined,
-        floor: Number(form.get("floor")) || 1,
-      });
-      toast({ title: "Room created" });
+      if (editing) {
+        await updateRoom(editing.id, data);
+        toast({ title: "Room updated" });
+      } else {
+        await createRoom(data);
+        toast({ title: "Room created" });
+      }
       setDialogOpen(false);
+      setEditing(null);
       router.refresh();
-    } catch {
-      toast({ title: "Error", variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -83,7 +94,7 @@ export function RoomsClient({ rooms }: RoomsClientProps) {
   return (
     <div>
       <PageHeader title="Rooms" description="Visual room dashboard and management">
-        <Button variant="gold" onClick={() => setDialogOpen(true)}>
+        <Button variant="gold" onClick={() => { setEditing(null); setDialogOpen(true); }}>
           <Plus className="h-4 w-4 mr-1" /> Add Room
         </Button>
       </PageHeader>
@@ -127,6 +138,14 @@ export function RoomsClient({ rooms }: RoomsClientProps) {
                   ))}
                 </SelectContent>
               </Select>
+              <div className="flex gap-1 mt-2">
+                <Button size="sm" variant="outline" className="flex-1 h-8" onClick={() => { setEditing(room); setDialogOpen(true); }}>
+                  <Pencil className="h-3 w-3" />
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 h-8 text-destructive" onClick={() => setDeleteId(room.id)}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -135,39 +154,62 @@ export function RoomsClient({ rooms }: RoomsClientProps) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-serif">Add Room</DialogTitle>
+            <DialogTitle className="font-serif">{editing ? "Edit Room" : "Add Room"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Room Number</Label>
-                <Input name="number" required placeholder="101" />
+                <Input name="number" required placeholder="101" defaultValue={editing?.number} />
               </div>
               <div className="space-y-2">
                 <Label>Type</Label>
-                <Input name="type" required placeholder="Standard" />
+                <Input name="type" required placeholder="Standard" defaultValue={editing?.type} />
               </div>
               <div className="space-y-2">
                 <Label>Price/Night (KES)</Label>
-                <Input name="pricePerNight" type="number" required />
+                <Input name="pricePerNight" type="number" required defaultValue={editing?.pricePerNight} />
               </div>
               <div className="space-y-2">
                 <Label>Capacity</Label>
-                <Input name="capacity" type="number" defaultValue={2} />
+                <Input name="capacity" type="number" defaultValue={editing?.capacity ?? 2} />
               </div>
               <div className="space-y-2">
                 <Label>Floor</Label>
-                <Input name="floor" type="number" defaultValue={1} />
+                <Input name="floor" type="number" defaultValue={editing?.floor ?? 1} />
               </div>
               <div className="space-y-2 col-span-2">
                 <Label>Description</Label>
-                <Input name="description" />
+                <Input name="description" defaultValue={editing?.description || ""} />
               </div>
             </div>
-            <Button type="submit" variant="gold" className="w-full" disabled={loading}>Create Room</Button>
+            <Button type="submit" variant="gold" className="w-full" disabled={loading}>
+              {editing ? "Update" : "Create"} Room
+            </Button>
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        description="Delete this room? Cannot delete if it has an active booking."
+        loading={loading}
+        onConfirm={async () => {
+          if (!deleteId) return;
+          setLoading(true);
+          try {
+            await deleteRoom(deleteId);
+            toast({ title: "Room deleted" });
+            setDeleteId(null);
+            router.refresh();
+          } catch (err) {
+            toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+          } finally {
+            setLoading(false);
+          }
+        }}
+      />
     </div>
   );
 }

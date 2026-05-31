@@ -4,6 +4,13 @@ import prisma from "@/lib/prisma";
 import { getSession, logActivity } from "./dashboard";
 import { revalidatePath } from "next/cache";
 import { InventoryType } from "@prisma/client";
+import { AppError } from "@/lib/app-error";
+
+const activeProductFilter = {
+  isActive: true,
+  deletedAt: null,
+  status: "ACTIVE" as const,
+};
 
 export async function getInventoryMovements(productId?: string) {
   return prisma.inventoryMovement.findMany({
@@ -146,7 +153,7 @@ export async function recordWastage(data: {
 
 export async function getLowStockProducts() {
   const products = await prisma.product.findMany({
-    where: { status: "ACTIVE" },
+    where: { ...activeProductFilter },
     include: { category: true },
   });
   return products.filter((p) => p.stock <= p.lowStockAlert);
@@ -154,7 +161,40 @@ export async function getLowStockProducts() {
 
 export async function getAllProducts() {
   return prisma.product.findMany({
+    where: { deletedAt: null },
     include: { category: true },
     orderBy: { name: "asc" },
   });
+}
+
+export async function deleteInventoryMovement(id: string) {
+  const session = await getSession();
+  if (session?.user?.role !== "ADMIN") throw new AppError("Unauthorized");
+
+  const movement = await prisma.inventoryMovement.findUnique({
+    where: { id },
+    include: { product: true },
+  });
+  if (!movement) throw new AppError("Movement not found");
+
+  if (movement.type !== InventoryType.ADJUSTMENT) {
+    throw new AppError("Only inventory adjustment records can be deleted.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({
+      where: { id: movement.productId },
+      data: { stock: { decrement: movement.quantity } },
+    });
+    await tx.inventoryMovement.delete({ where: { id } });
+  });
+
+  await logActivity(
+    "DELETE",
+    "InventoryMovement",
+    id,
+    `${movement.product.name}: reversed qty ${movement.quantity}`
+  );
+  revalidatePath("/inventory");
+  revalidatePath("/products");
 }

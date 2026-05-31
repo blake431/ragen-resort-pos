@@ -11,11 +11,18 @@ import {
   PaymentMethod,
   ProductStatus,
 } from "@prisma/client";
+import { AppError } from "@/lib/app-error";
+
+const activeProductFilter = {
+  isActive: true,
+  deletedAt: null,
+  status: ProductStatus.ACTIVE,
+};
 
 export async function getProducts(categoryId?: string) {
   return prisma.product.findMany({
     where: {
-      status: ProductStatus.ACTIVE,
+      ...activeProductFilter,
       ...(categoryId ? { categoryId } : {}),
     },
     include: { category: true },
@@ -26,6 +33,21 @@ export async function getProducts(categoryId?: string) {
 export async function getCategories() {
   return prisma.category.findMany({
     where: { active: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function getAllCategories() {
+  return prisma.category.findMany({
+    include: { _count: { select: { products: true } } },
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function getAllProductsAdmin() {
+  return prisma.product.findMany({
+    where: { deletedAt: null },
+    include: { category: true, _count: { select: { orderItems: true } } },
     orderBy: { name: "asc" },
   });
 }
@@ -81,13 +103,61 @@ export async function updateProduct(
 
 export async function deleteProduct(id: string) {
   const session = await getSession();
-  if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
+  if (session?.user?.role !== "ADMIN") throw new AppError("Unauthorized");
+
+  const product = await prisma.product.findUnique({
+    where: { id },
+    include: { _count: { select: { orderItems: true } } },
+  });
+  if (!product) throw new AppError("Product not found");
+  if (product.deletedAt) throw new AppError("Product is already deleted");
 
   await prisma.product.update({
     where: { id },
-    data: { status: ProductStatus.INACTIVE },
+    data: {
+      isActive: false,
+      deletedAt: new Date(),
+      status: ProductStatus.INACTIVE,
+    },
   });
-  await logActivity("DELETE", "Product", id);
+
+  const detail =
+    product._count.orderItems > 0
+      ? `Soft deleted (has ${product._count.orderItems} sale records)`
+      : "Soft deleted";
+  await logActivity("DELETE", "Product", id, detail);
+  revalidatePath("/products");
+  revalidatePath("/pos");
+}
+
+export async function updateCategory(
+  id: string,
+  data: Partial<{ name: string; description: string; type: string; active: boolean }>
+) {
+  const session = await getSession();
+  if (session?.user?.role !== "ADMIN") throw new AppError("Unauthorized");
+
+  const category = await prisma.category.update({ where: { id }, data });
+  await logActivity("UPDATE", "Category", id, category.name);
+  revalidatePath("/products");
+  return category;
+}
+
+export async function deleteCategory(id: string) {
+  const session = await getSession();
+  if (session?.user?.role !== "ADMIN") throw new AppError("Unauthorized");
+
+  const count = await prisma.product.count({
+    where: { categoryId: id, deletedAt: null },
+  });
+  if (count > 0) {
+    throw new AppError(
+      `Cannot delete category — ${count} product(s) still assigned. Move or delete them first.`
+    );
+  }
+
+  await prisma.category.delete({ where: { id } });
+  await logActivity("DELETE", "Category", id);
   revalidatePath("/products");
 }
 
@@ -233,14 +303,24 @@ export async function getHeldSales() {
 
 export async function cancelOrder(id: string) {
   const session = await getSession();
-  if (!session?.user?.id) throw new Error("Unauthorized");
+  if (!session?.user?.id) throw new AppError("Unauthorized");
+
+  const order = await prisma.order.findUnique({
+    where: { id },
+    include: { payments: true },
+  });
+  if (!order) throw new AppError("Order not found");
+
+  if (order.status === OrderStatus.COMPLETED && order.payments.length > 0) {
+    throw new AppError("Cannot cancel a paid order. Contact an admin for refunds.");
+  }
 
   await prisma.order.update({
     where: { id },
     data: { status: OrderStatus.CANCELLED },
   });
 
-  await logActivity("CANCEL", "Order", id);
+  await logActivity("CANCEL", "Order", id, order.orderNumber);
   revalidatePath("/pos");
   revalidatePath("/orders");
 }
@@ -322,7 +402,7 @@ export async function createKitchenOrder(data: {
 export async function getProductsByCategoryType(types: string[]) {
   return prisma.product.findMany({
     where: {
-      status: ProductStatus.ACTIVE,
+      ...activeProductFilter,
       category: { type: { in: types } },
     },
     include: { category: true },
@@ -347,4 +427,29 @@ export async function updateOrderStatus(id: string, status: OrderStatus) {
   revalidatePath("/restaurant");
   revalidatePath("/bar");
   return order;
+}
+
+export async function deleteOrder(id: string) {
+  const session = await getSession();
+  if (!session?.user?.id) throw new AppError("Unauthorized");
+
+  const order = await prisma.order.findUnique({
+    where: { id },
+    include: { payments: true },
+  });
+  if (!order) throw new AppError("Order not found");
+
+  if (order.status === OrderStatus.COMPLETED && order.payments.length > 0) {
+    throw new AppError("Cannot delete a paid order. Cancel it instead to preserve audit history.");
+  }
+
+  const deletableStatuses: OrderStatus[] = [OrderStatus.CANCELLED, OrderStatus.ON_HOLD, OrderStatus.PENDING];
+  if (!deletableStatuses.includes(order.status)) {
+    throw new AppError("Only cancelled, on-hold, or pending orders can be deleted.");
+  }
+
+  await prisma.order.delete({ where: { id } });
+  await logActivity("DELETE", "Order", id, order.orderNumber);
+  revalidatePath("/orders");
+  revalidatePath("/pos");
 }

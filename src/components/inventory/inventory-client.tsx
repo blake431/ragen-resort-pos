@@ -21,12 +21,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { stockIn, stockOut, adjustStock, recordWastage } from "@/lib/actions/inventory";
+import { stockIn, stockOut, adjustStock, recordWastage, deleteInventoryMovement } from "@/lib/actions/inventory";
 import { formatDate } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/app-error";
 import { useToast } from "@/hooks/use-toast";
 import { useRequireConnection } from "@/hooks/use-require-connection";
 import { useRouter } from "next/navigation";
 import { PackagePlus, PackageMinus, Settings2, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 
 interface InventoryClientProps {
   products: Array<{ id: string; name: string; sku: string; stock: number; lowStockAlert: number; category: { name: string } }>;
@@ -41,12 +43,14 @@ interface InventoryClientProps {
     user: { name: string } | null;
   }>;
   lowStock: Array<{ id: string; name: string; stock: number; lowStockAlert: number }>;
+  isAdmin?: boolean;
 }
 
-export function InventoryClient({ products, movements, lowStock }: InventoryClientProps) {
+export function InventoryClient({ products, movements, lowStock, isAdmin }: InventoryClientProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [actionType, setActionType] = useState<"in" | "out" | "adjust" | "wastage">("in");
   const [loading, setLoading] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const { toast } = useToast();
   const { blockIfOffline, disabled: offlineDisabled } = useRequireConnection();
   const router = useRouter();
@@ -82,8 +86,8 @@ export function InventoryClient({ products, movements, lowStock }: InventoryClie
       toast({ title: "Inventory updated" });
       setDialogOpen(false);
       router.refresh();
-    } catch {
-      toast({ title: "Error", variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -141,14 +145,27 @@ export function InventoryClient({ products, movements, lowStock }: InventoryClie
           <div className="space-y-2">
             {movements.map((m) => (
               <Card key={m.id}>
-                <CardContent className="p-4 flex justify-between">
+                <CardContent className="p-4 flex justify-between items-center">
                   <div>
                     <p className="font-medium text-sm">{m.product.name}</p>
                     <p className="text-xs text-muted-foreground">{m.type} • {m.reason || "—"} • {m.user?.name}</p>
                   </div>
-                  <div className="text-right">
-                    <Badge variant={m.quantity > 0 ? "success" : "destructive"}>{m.quantity > 0 ? "+" : ""}{m.quantity}</Badge>
-                    <p className="text-xs text-muted-foreground mt-1">{formatDate(m.createdAt)}</p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <Badge variant={m.quantity > 0 ? "success" : "destructive"}>{m.quantity > 0 ? "+" : ""}{m.quantity}</Badge>
+                      <p className="text-xs text-muted-foreground mt-1">{formatDate(m.createdAt)}</p>
+                    </div>
+                    {isAdmin && m.type === "ADJUSTMENT" && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive"
+                        disabled={offlineDisabled}
+                        onClick={() => setDeleteId(m.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -193,6 +210,27 @@ export function InventoryClient({ products, movements, lowStock }: InventoryClie
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        description="Delete this stock adjustment? Stock will be reversed."
+        loading={loading}
+        onConfirm={async () => {
+          if (!deleteId) return;
+          setLoading(true);
+          try {
+            await deleteInventoryMovement(deleteId);
+            toast({ title: "Adjustment deleted" });
+            setDeleteId(null);
+            router.refresh();
+          } catch (err) {
+            toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+          } finally {
+            setLoading(false);
+          }
+        }}
+      />
     </div>
   );
 }

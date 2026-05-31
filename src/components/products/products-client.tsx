@@ -8,23 +8,21 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { createProduct, updateProduct, createCategory } from "@/lib/actions/products";
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+} from "@/lib/actions/products";
 import { formatCurrency } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/app-error";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface ProductsClientProps {
@@ -38,18 +36,29 @@ interface ProductsClientProps {
     stock: number;
     lowStockAlert: number;
     status: string;
+    isActive: boolean;
     categoryId: string;
     category: { id: string; name: string };
+    _count: { orderItems: number };
   }>;
-  categories: Array<{ id: string; name: string; description: string | null }>;
+  categories: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    type: string;
+    active: boolean;
+    _count: { products: number };
+  }>;
 }
 
 export function ProductsClient({ products, categories }: ProductsClientProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ProductsClientProps["products"][0] | null>(null);
+  const [editingCat, setEditingCat] = useState<ProductsClientProps["categories"][0] | null>(null);
   const [categoryId, setCategoryId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirm, setConfirm] = useState<{ type: "product" | "category"; id: string; name: string } | null>(null);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -57,7 +66,6 @@ export function ProductsClient({ products, categories }: ProductsClientProps) {
     e.preventDefault();
     setLoading(true);
     const form = new FormData(e.currentTarget);
-
     const data = {
       name: form.get("name") as string,
       sku: form.get("sku") as string,
@@ -68,7 +76,6 @@ export function ProductsClient({ products, categories }: ProductsClientProps) {
       lowStockAlert: Number(form.get("lowStockAlert")),
       categoryId: form.get("categoryId") as string,
     };
-
     try {
       if (editing) {
         await updateProduct(editing.id, data);
@@ -80,8 +87,8 @@ export function ProductsClient({ products, categories }: ProductsClientProps) {
       setDialogOpen(false);
       setEditing(null);
       router.refresh();
-    } catch {
-      toast({ title: "Error", description: "Failed to save product", variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Error", description: getErrorMessage(err, "Failed to save product"), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -91,17 +98,44 @@ export function ProductsClient({ products, categories }: ProductsClientProps) {
     e.preventDefault();
     setLoading(true);
     const form = new FormData(e.currentTarget);
+    const data = {
+      name: form.get("name") as string,
+      description: (form.get("description") as string) || undefined,
+      type: (form.get("type") as string) || "GENERAL",
+    };
     try {
-      await createCategory({
-        name: form.get("name") as string,
-        description: (form.get("description") as string) || undefined,
-        type: (form.get("type") as string) || "GENERAL",
-      });
-      toast({ title: "Category created" });
+      if (editingCat) {
+        await updateCategory(editingCat.id, data);
+        toast({ title: "Category updated" });
+      } else {
+        await createCategory(data);
+        toast({ title: "Category created" });
+      }
       setCatDialogOpen(false);
+      setEditingCat(null);
       router.refresh();
-    } catch {
-      toast({ title: "Error", variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirm) return;
+    setLoading(true);
+    try {
+      if (confirm.type === "product") {
+        await deleteProduct(confirm.id);
+        toast({ title: "Product removed", description: "Hidden from POS and product list." });
+      } else {
+        await deleteCategory(confirm.id);
+        toast({ title: "Category deleted" });
+      }
+      setConfirm(null);
+      router.refresh();
+    } catch (err) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -111,7 +145,7 @@ export function ProductsClient({ products, categories }: ProductsClientProps) {
     <div>
       <PageHeader title="Products" description="Manage products and categories">
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setCatDialogOpen(true)}>Add Category</Button>
+          <Button variant="outline" onClick={() => { setEditingCat(null); setCatDialogOpen(true); }}>Add Category</Button>
           <Button variant="gold" onClick={() => { setEditing(null); setDialogOpen(true); }}>
             <Plus className="h-4 w-4 mr-1" /> Add Product
           </Button>
@@ -130,21 +164,32 @@ export function ProductsClient({ products, categories }: ProductsClientProps) {
               <Card key={product.id}>
                 <CardContent className="p-4 flex items-center justify-between">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium">{product.name}</span>
                       <Badge variant="outline">{product.category.name}</Badge>
-                      {product.status === "INACTIVE" && <Badge variant="destructive">Inactive</Badge>}
+                      {!product.isActive && <Badge variant="destructive">Inactive</Badge>}
+                      {product._count.orderItems > 0 && (
+                        <Badge variant="secondary">{product._count.orderItems} sales</Badge>
+                      )}
                       {product.stock <= product.lowStockAlert && <Badge variant="destructive">Low Stock</Badge>}
                     </div>
                     <p className="text-sm text-muted-foreground">SKU: {product.sku} • Stock: {product.stock}</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
+                  <div className="flex items-center gap-2">
+                    <div className="text-right mr-2">
                       <p className="font-bold text-gold">{formatCurrency(product.sellingPrice)}</p>
                       <p className="text-xs text-muted-foreground">Cost: {formatCurrency(product.costPrice)}</p>
                     </div>
                     <Button size="icon" variant="ghost" onClick={() => { setEditing(product); setDialogOpen(true); }}>
                       <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="text-destructive"
+                      onClick={() => setConfirm({ type: "product", id: product.id, name: product.name })}
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </CardContent>
@@ -158,8 +203,26 @@ export function ProductsClient({ products, categories }: ProductsClientProps) {
             {categories.map((cat) => (
               <Card key={cat.id}>
                 <CardContent className="p-4">
-                  <p className="font-medium">{cat.name}</p>
-                  {cat.description && <p className="text-sm text-muted-foreground">{cat.description}</p>}
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-medium">{cat.name}</p>
+                      {cat.description && <p className="text-sm text-muted-foreground">{cat.description}</p>}
+                      <p className="text-xs text-muted-foreground mt-1">{cat._count.products} product(s)</p>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" onClick={() => { setEditingCat(cat); setCatDialogOpen(true); }}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive"
+                        onClick={() => setConfirm({ type: "category", id: cat.id, name: cat.name })}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -174,40 +237,19 @@ export function ProductsClient({ products, categories }: ProductsClientProps) {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2 col-span-2">
-                <Label>Name</Label>
-                <Input name="name" defaultValue={editing?.name} required />
-              </div>
-              <div className="space-y-2">
-                <Label>SKU</Label>
-                <Input name="sku" defaultValue={editing?.sku} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Barcode</Label>
-                <Input name="barcode" defaultValue={editing?.barcode || ""} />
-              </div>
-              <div className="space-y-2">
-                <Label>Selling Price</Label>
-                <Input name="sellingPrice" type="number" defaultValue={editing?.sellingPrice} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Cost Price</Label>
-                <Input name="costPrice" type="number" defaultValue={editing?.costPrice || 0} />
-              </div>
-              <div className="space-y-2">
-                <Label>Stock</Label>
-                <Input name="stock" type="number" defaultValue={editing?.stock || 0} />
-              </div>
-              <div className="space-y-2">
-                <Label>Low Stock Alert</Label>
-                <Input name="lowStockAlert" type="number" defaultValue={editing?.lowStockAlert || 5} />
-              </div>
+              <div className="space-y-2 col-span-2"><Label>Name</Label><Input name="name" defaultValue={editing?.name} required /></div>
+              <div className="space-y-2"><Label>SKU</Label><Input name="sku" defaultValue={editing?.sku} required /></div>
+              <div className="space-y-2"><Label>Barcode</Label><Input name="barcode" defaultValue={editing?.barcode || ""} /></div>
+              <div className="space-y-2"><Label>Selling Price</Label><Input name="sellingPrice" type="number" defaultValue={editing?.sellingPrice} required /></div>
+              <div className="space-y-2"><Label>Cost Price</Label><Input name="costPrice" type="number" defaultValue={editing?.costPrice || 0} /></div>
+              <div className="space-y-2"><Label>Stock</Label><Input name="stock" type="number" defaultValue={editing?.stock || 0} /></div>
+              <div className="space-y-2"><Label>Low Stock Alert</Label><Input name="lowStockAlert" type="number" defaultValue={editing?.lowStockAlert || 5} /></div>
               <div className="space-y-2 col-span-2">
                 <Label>Category</Label>
                 <Select value={categoryId || editing?.categoryId} onValueChange={setCategoryId}>
                   <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
-                    {categories.map((c) => (
+                    {categories.filter((c) => c.active).map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -225,20 +267,14 @@ export function ProductsClient({ products, categories }: ProductsClientProps) {
       <Dialog open={catDialogOpen} onOpenChange={setCatDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-serif">Add Category</DialogTitle>
+            <DialogTitle className="font-serif">{editingCat ? "Edit Category" : "Add Category"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCategorySubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input name="name" required placeholder="e.g. Beer" />
-            </div>
-            <div className="space-y-2">
-              <Label>Description</Label>
-              <Input name="description" />
-            </div>
+            <div className="space-y-2"><Label>Name</Label><Input name="name" defaultValue={editingCat?.name} required /></div>
+            <div className="space-y-2"><Label>Description</Label><Input name="description" defaultValue={editingCat?.description || ""} /></div>
             <div className="space-y-2">
               <Label>Type</Label>
-              <Select name="type" defaultValue="GENERAL">
+              <Select name="type" defaultValue={editingCat?.type || "GENERAL"}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALCOHOL">Alcohol</SelectItem>
@@ -249,10 +285,26 @@ export function ProductsClient({ products, categories }: ProductsClientProps) {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" variant="gold" className="w-full" disabled={loading}>Create Category</Button>
+            <Button type="submit" variant="gold" className="w-full" disabled={loading}>
+              {editingCat ? "Update" : "Create"} Category
+            </Button>
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!confirm}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title="Are you sure?"
+        description={
+          confirm?.type === "product"
+            ? `Remove "${confirm.name}"? It will be hidden from POS. Sales history is preserved.`
+            : `Delete category "${confirm?.name}"? This cannot be undone if no products are assigned.`
+        }
+        confirmLabel="Delete"
+        loading={loading}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

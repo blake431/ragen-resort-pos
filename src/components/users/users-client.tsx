@@ -22,9 +22,11 @@ import {
 } from "@/components/ui/select";
 import { createUser, updateUser } from "@/lib/actions/admin";
 import { ROLE_LABELS } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/app-error";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 
 interface UsersClientProps {
   users: Array<{
@@ -39,6 +41,7 @@ interface UsersClientProps {
 
 export function UsersClient({ users }: UsersClientProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [toggleUser, setToggleUser] = useState<UsersClientProps["users"][0] | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
@@ -87,11 +90,7 @@ export function UsersClient({ users }: UsersClientProps) {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={async () => {
-                  await updateUser(user.id, { active: !user.active });
-                  router.refresh();
-                  toast({ title: user.active ? "User deactivated" : "User activated" });
-                }}
+                onClick={() => setToggleUser(user)}
               >
                 {user.active ? "Deactivate" : "Activate"}
               </Button>
@@ -122,6 +121,32 @@ export function UsersClient({ users }: UsersClientProps) {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!toggleUser}
+        onOpenChange={(open) => !open && setToggleUser(null)}
+        description={
+          toggleUser?.active
+            ? `Deactivate ${toggleUser.name}? They will no longer be able to sign in.`
+            : `Activate ${toggleUser?.name}?`
+        }
+        confirmLabel={toggleUser?.active ? "Deactivate" : "Activate"}
+        loading={loading}
+        onConfirm={async () => {
+          if (!toggleUser) return;
+          setLoading(true);
+          try {
+            await updateUser(toggleUser.id, { active: !toggleUser.active });
+            toast({ title: toggleUser.active ? "User deactivated" : "User activated" });
+            setToggleUser(null);
+            router.refresh();
+          } catch (err) {
+            toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+          } finally {
+            setLoading(false);
+          }
+        }}
+      />
     </div>
   );
 }

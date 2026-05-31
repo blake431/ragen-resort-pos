@@ -27,12 +27,15 @@ import {
   checkInBooking,
   checkOutBooking,
   cancelBooking,
+  deleteBooking,
 } from "@/lib/actions/rooms";
 import { formatCurrency, formatDateOnly } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/app-error";
 import { useToast } from "@/hooks/use-toast";
 import { useRequireConnection } from "@/hooks/use-require-connection";
 import { useRouter } from "next/navigation";
-import { Plus, LogIn, LogOut, X } from "lucide-react";
+import { Plus, LogIn, LogOut, X, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 
 interface BookingsClientProps {
   bookings: Array<{
@@ -54,6 +57,7 @@ export function BookingsClient({ bookings, guests, rooms }: BookingsClientProps)
   const [bookingOpen, setBookingOpen] = useState(false);
   const [guestOpen, setGuestOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [confirm, setConfirm] = useState<{ action: "cancel" | "delete"; id: string } | null>(null);
   const { toast } = useToast();
   const { blockIfOffline, disabled: offlineDisabled } = useRequireConnection();
   const router = useRouter();
@@ -158,10 +162,7 @@ export function BookingsClient({ bookings, guests, rooms }: BookingsClientProps)
                         }}>
                           <LogIn className="h-3 w-3 mr-1" /> Check In
                         </Button>
-                        <Button size="sm" variant="destructive" disabled={offlineDisabled} onClick={async () => {
-                          if (blockIfOffline("Cancelling a booking")) return;
-                          await cancelBooking(b.id); router.refresh();
-                        }}>
+                        <Button size="sm" variant="destructive" disabled={offlineDisabled} onClick={() => setConfirm({ action: "cancel", id: b.id })}>
                           <X className="h-3 w-3" />
                         </Button>
                       </>
@@ -172,6 +173,11 @@ export function BookingsClient({ bookings, guests, rooms }: BookingsClientProps)
                         await checkOutBooking(b.id); router.refresh(); toast({ title: "Checked out" });
                       }}>
                         <LogOut className="h-3 w-3 mr-1" /> Check Out
+                      </Button>
+                    )}
+                    {b.status === "CANCELLED" && (
+                      <Button size="sm" variant="outline" className="text-destructive" disabled={offlineDisabled} onClick={() => setConfirm({ action: "delete", id: b.id })}>
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     )}
                   </div>
@@ -244,6 +250,34 @@ export function BookingsClient({ bookings, guests, rooms }: BookingsClientProps)
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!confirm}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        description={confirm?.action === "cancel" ? "Cancel this booking?" : "Permanently delete this cancelled booking?"}
+        confirmLabel={confirm?.action === "cancel" ? "Cancel Booking" : "Delete"}
+        loading={loading}
+        onConfirm={async () => {
+          if (!confirm) return;
+          if (blockIfOffline(confirm.action === "cancel" ? "Cancelling a booking" : "Deleting a booking")) return;
+          setLoading(true);
+          try {
+            if (confirm.action === "cancel") {
+              await cancelBooking(confirm.id);
+              toast({ title: "Booking cancelled" });
+            } else {
+              await deleteBooking(confirm.id);
+              toast({ title: "Booking deleted" });
+            }
+            setConfirm(null);
+            router.refresh();
+          } catch (err) {
+            toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+          } finally {
+            setLoading(false);
+          }
+        }}
+      />
     </div>
   );
 }

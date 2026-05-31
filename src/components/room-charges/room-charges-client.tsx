@@ -20,12 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { addRoomCharge } from "@/lib/actions/rooms";
+import { addRoomCharge, updateRoomCharge, deleteRoomCharge } from "@/lib/actions/rooms";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/app-error";
 import { useToast } from "@/hooks/use-toast";
 import { useRequireConnection } from "@/hooks/use-require-connection";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 
 interface RoomChargesClientProps {
   activeBookings: Array<{
@@ -48,6 +50,8 @@ interface RoomChargesClientProps {
 
 export function RoomChargesClient({ activeBookings, products }: RoomChargesClientProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editCharge, setEditCharge] = useState<{ id: string; description: string; quantity: number; unitPrice: number } | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -75,8 +79,29 @@ export function RoomChargesClient({ activeBookings, products }: RoomChargesClien
       toast({ title: "Charge added" });
       setDialogOpen(false);
       router.refresh();
-    } catch {
-      toast({ title: "Error", variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editCharge || blockIfOffline("Updating a room charge")) return;
+    setLoading(true);
+    const form = new FormData(e.currentTarget);
+    try {
+      await updateRoomCharge(editCharge.id, {
+        description: form.get("description") as string,
+        quantity: Number(form.get("quantity")),
+        unitPrice: Number(form.get("unitPrice")),
+      });
+      toast({ title: "Charge updated" });
+      setEditCharge(null);
+      router.refresh();
+    } catch (err) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -113,12 +138,20 @@ export function RoomChargesClient({ activeBookings, products }: RoomChargesClien
                 {booking.roomCharges.length > 0 && (
                   <div className="space-y-2 border-t pt-3">
                     {booking.roomCharges.map((charge) => (
-                      <div key={charge.id} className="flex justify-between text-sm">
+                      <div key={charge.id} className="flex justify-between items-center text-sm">
                         <div>
                           <span>{charge.description}</span>
                           <Badge variant="outline" className="ml-2 text-xs">{charge.type}</Badge>
                         </div>
-                        <span>{formatCurrency(charge.total)}</span>
+                        <div className="flex items-center gap-2">
+                          <span>{formatCurrency(charge.total)}</span>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" disabled={offlineDisabled} onClick={() => setEditCharge({ id: charge.id, description: charge.description, quantity: charge.quantity, unitPrice: charge.unitPrice })}>
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" disabled={offlineDisabled} onClick={() => setDeleteId(charge.id)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -183,6 +216,41 @@ export function RoomChargesClient({ activeBookings, products }: RoomChargesClien
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!editCharge} onOpenChange={(open) => !open && setEditCharge(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="font-serif">Edit Charge</DialogTitle></DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="space-y-2"><Label>Description</Label><Input name="description" required defaultValue={editCharge?.description} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Quantity</Label><Input name="quantity" type="number" min={1} required defaultValue={editCharge?.quantity} /></div>
+              <div className="space-y-2"><Label>Unit Price</Label><Input name="unitPrice" type="number" required defaultValue={editCharge?.unitPrice} /></div>
+            </div>
+            <Button type="submit" variant="gold" className="w-full" disabled={loading || offlineDisabled}>Update Charge</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        description="Delete this room charge?"
+        loading={loading}
+        onConfirm={async () => {
+          if (!deleteId || blockIfOffline("Deleting a room charge")) return;
+          setLoading(true);
+          try {
+            await deleteRoomCharge(deleteId);
+            toast({ title: "Charge deleted" });
+            setDeleteId(null);
+            router.refresh();
+          } catch (err) {
+            toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
+          } finally {
+            setLoading(false);
+          }
+        }}
+      />
     </div>
   );
 }
