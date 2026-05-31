@@ -72,8 +72,22 @@
     min-width: 48px;
   }
 
-  .tablet-pos-grid {
-    @apply grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4;
+  /* POS product list — thin scrollbar, no layout overlap */
+  .pos-product-scroll {
+    @apply rounded-lg border border-border/40 bg-card/30;
+  }
+
+  .pos-product-scroll > div {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+
+  .pos-product-scroll > div::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .pos-product-scroll > div::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-muted-foreground/30;
   }
 }
 

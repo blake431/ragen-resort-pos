@@ -196,9 +196,9 @@ export function POSClient({ products, categories, taxRate }: POSPageProps) {
         </div>
       )}
 
-      <div className="flex flex-col xl:grid xl:grid-cols-3 gap-4 min-h-0 xl:h-[calc(100vh-200px)]">
-        <div className="xl:col-span-2 flex flex-col gap-4 min-h-0 order-1">
-          <div className="relative">
+      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:min-h-[calc(100dvh-10rem)]">
+        <div className="lg:col-span-2 flex flex-col gap-3 min-h-0 order-1">
+          <div className="relative shrink-0">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
               placeholder="Search products..."
@@ -208,7 +208,7 @@ export function POSClient({ products, categories, taxRate }: POSPageProps) {
             />
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide shrink-0">
             <Button
               size="lg"
               className="h-11 shrink-0 touch-target"
@@ -230,32 +230,37 @@ export function POSClient({ products, categories, taxRate }: POSPageProps) {
             ))}
           </div>
 
-          <div className="tablet-pos-grid overflow-y-auto flex-1 pb-2 max-h-[45vh] xl:max-h-none">
-            {filteredProducts.map((product) => (
-              <button
-                key={product.id}
-                onClick={() =>
-                  addItem({
-                    productId: product.id,
-                    name: product.name,
-                    unitPrice: product.sellingPrice,
-                    stock: product.stock,
-                  })
-                }
-                className="flex flex-col items-start p-4 md:p-5 rounded-xl border bg-card hover:border-gold/50 hover:shadow-md active:scale-[0.98] transition-all text-left min-h-[100px] touch-target"
-              >
-                <p className="font-semibold text-base line-clamp-2">{product.name}</p>
-                <p className="text-sm text-muted-foreground mt-1">{product.category.name}</p>
-                <div className="flex items-center justify-between w-full mt-auto pt-3">
-                  <span className="font-bold text-lg text-gold">{formatCurrency(product.sellingPrice)}</span>
-                  <Badge variant="secondary">{product.stock}</Badge>
-                </div>
-              </button>
-            ))}
+          <div className="pos-product-scroll relative flex-1 min-h-[320px] max-h-[calc(100dvh-20rem)] lg:max-h-none lg:min-h-[400px]">
+            <div className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3 p-1 items-start content-start">
+                {filteredProducts.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    onClick={() =>
+                      addItem({
+                        productId: product.id,
+                        name: product.name,
+                        unitPrice: product.sellingPrice,
+                        stock: product.stock,
+                      })
+                    }
+                    className="w-full flex flex-col gap-1.5 p-3 sm:p-4 rounded-xl border bg-card hover:border-gold/50 hover:shadow-md active:scale-[0.98] transition-transform text-left min-h-[112px]"
+                  >
+                    <p className="font-semibold text-sm sm:text-base leading-snug line-clamp-2">{product.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{product.category.name}</p>
+                    <div className="flex items-center justify-between gap-2 mt-auto pt-2 w-full">
+                      <span className="font-bold text-base sm:text-lg text-gold">{formatCurrency(product.sellingPrice)}</span>
+                      <Badge variant="secondary" className="shrink-0 text-xs">{product.stock}</Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        <Card className="flex flex-col min-h-0 order-2 xl:order-none sticky bottom-0 xl:static z-10 shadow-lg xl:shadow-sm">
+        <Card className="flex flex-col min-h-0 order-2 lg:order-none lg:max-h-[calc(100dvh-10rem)]">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg font-serif flex items-center justify-between">
               Cart
