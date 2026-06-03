@@ -538,7 +538,7 @@ export function ReportsClient({ settings }: ReportsClientProps) {
       </PageHeader>
 
       <p className="no-print -mt-4 mb-6 text-xs text-muted-foreground">
-        CSV is raw data. Excel exports are formatted reports (Summary, Details, and Chart Data sheets).
+        Excel exports are formatted data reports. For charts, use Print Visual Report (Print or Save as PDF).
       </p>
 
       <div className="no-print mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -602,9 +602,9 @@ export function ReportsClient({ settings }: ReportsClientProps) {
                       setActiveReport(mod.id);
                       exportExcelReport(mod.id);
                     }}
-                    title="Formatted workbook with Summary, Details, and Chart Data"
+                    title="Formatted Summary, Details, and Chart Data workbook"
                   >
-                    <FileSpreadsheet className="h-4 w-4 mr-1" /> Export Excel Report
+                    <FileSpreadsheet className="h-4 w-4 mr-1" /> Export Excel Formatted Report
                   </Button>
                 )}
               </CardContent>
@@ -631,13 +631,13 @@ export function ReportsClient({ settings }: ReportsClientProps) {
               size="sm"
               disabled={exportDisabled}
               onClick={() => exportExcelReport(activeReport!)}
-              title="Formatted workbook with Summary, Details, and Chart Data"
+              title="Formatted Summary, Details, and Chart Data workbook"
             >
-              <FileSpreadsheet className="h-4 w-4 mr-1" /> Export Excel Report
+              <FileSpreadsheet className="h-4 w-4 mr-1" /> Export Excel Formatted Report
             </Button>
           )}
-          <Button variant="gold" size="sm" onClick={printReport}>
-            <Printer className="h-4 w-4 mr-1" /> Print Report
+          <Button variant="gold" size="sm" onClick={printReport} title="Print or save as PDF with charts">
+            <Printer className="h-4 w-4 mr-1" /> Print Visual Report
           </Button>
         </div>
       )}
