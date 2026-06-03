@@ -124,3 +124,52 @@
     width: 72mm;
   }
 }
+
+/* Business report print (A4-style canvas) */
+@media print {
+  body:has(#report-print-area) {
+    background: #fff !important;
+  }
+
+  body:has(#report-print-area) * {
+    visibility: hidden;
+  }
+
+  body:has(#report-print-area) #report-print-area,
+  body:has(#report-print-area) #report-print-area * {
+    visibility: visible;
+  }
+
+  body:has(#report-print-area) #report-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 0;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  body:has(#report-print-area) aside,
+  body:has(#report-print-area) .no-print,
+  body:has(#report-print-area) [data-report-actions] {
+    display: none !important;
+  }
+
+  body:has(#report-print-area) main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  body:has(#report-print-area) .report-canvas {
+    background: #fff !important;
+    color: #0f172a !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+}
