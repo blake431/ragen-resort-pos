@@ -54,6 +54,8 @@ export async function updateSettings(data: {
   receiptFontSize?: string;
   receiptBoldText?: boolean;
   receiptSpacing?: string;
+  receiptPaperWidthMm?: number;
+  receiptPrintableWidthMm?: number;
   taxRate?: number;
   currency?: string;
 }) {

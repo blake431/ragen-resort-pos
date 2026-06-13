@@ -403,6 +403,8 @@ model Settings {
   receiptFontSize String @default("NORMAL")
   receiptBoldText Boolean @default(true)
   receiptSpacing String @default("NORMAL")
+  receiptPaperWidthMm Int?
+  receiptPrintableWidthMm Int?
   taxRate       Float  @default(16)
   currency      String @default("KES")
   updatedAt     DateTime @updatedAt

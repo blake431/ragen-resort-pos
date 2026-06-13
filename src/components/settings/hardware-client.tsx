@@ -8,19 +8,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PrinterTestReceipt } from "@/components/settings/printer-test-receipt";
+import { PrinterCalibrationReceipt } from "@/components/settings/printer-calibration-receipt";
 import { ReceiptPrintButton } from "@/components/pos/receipt-print-button";
 import {
   detectBluetoothPrinter,
   isWebBluetoothAvailable,
 } from "@/lib/print-receipt";
+import { PRESET_DIMENSIONS, type ReceiptLayoutSettings, type ReceiptPaperPreset } from "@/lib/receipt-types";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Bluetooth, Printer, ScanBarcode } from "lucide-react";
+import { ArrowLeft, Bluetooth, Printer, Ruler, ScanBarcode } from "lucide-react";
 
 interface HardwareClientProps {
-  settings: {
+  settings: ReceiptLayoutSettings & {
     businessName: string;
     currency: string;
     receiptSize: string;
+    receiptPaperWidthMm: number | null;
+    receiptPrintableWidthMm: number | null;
     receiptAlignment: string;
     receiptFontSize: string;
     receiptBoldText: boolean;
@@ -33,14 +37,18 @@ export function HardwareClient({ settings }: HardwareClientProps) {
   const { toast } = useToast();
   const [scannerTest, setScannerTest] = useState("");
   const [bluetoothDetecting, setBluetoothDetecting] = useState(false);
-  const [previewSize, setPreviewSize] = useState<"58mm" | "80mm">(
-    settings.receiptSize === "58mm" ? "58mm" : "80mm"
+  const [previewSize, setPreviewSize] = useState<ReceiptPaperPreset>(
+    settings.receiptSize === "58mm" || settings.receiptSize === "89mm" || settings.receiptSize === "CUSTOM"
+      ? (settings.receiptSize as ReceiptPaperPreset)
+      : "80mm"
   );
   const [previewFontSize, setPreviewFontSize] = useState<"NORMAL" | "LARGE">("NORMAL");
   const webBluetoothAvailable = isWebBluetoothAvailable();
 
   const printSettings = {
     receiptSize: settings.receiptSize,
+    receiptPaperWidthMm: settings.receiptPaperWidthMm,
+    receiptPrintableWidthMm: settings.receiptPrintableWidthMm,
     receiptAlignment: settings.receiptAlignment,
     receiptFontSize: settings.receiptFontSize,
     receiptBoldText: settings.receiptBoldText,
@@ -87,6 +95,54 @@ export function HardwareClient({ settings }: HardwareClientProps) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg font-serif">
+              <Ruler className="h-5 w-5 text-gold" />
+              Print Calibration Test
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <PrinterCalibrationReceipt currency={settings.currency} {...printSettings} />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <ReceiptPrintButton
+                targetId="printer-calibration-receipt"
+                {...printSettings}
+                forcePaperWidthMm={PRESET_DIMENSIONS["58mm"].paperWidthMm}
+                forcePrintableWidthMm={PRESET_DIMENSIONS["58mm"].printableWidthMm}
+                label="Print 58mm Calibration"
+                variant="outline"
+                className="w-full h-12 touch-target"
+              />
+              <ReceiptPrintButton
+                targetId="printer-calibration-receipt"
+                {...printSettings}
+                forcePaperWidthMm={PRESET_DIMENSIONS["80mm"].paperWidthMm}
+                forcePrintableWidthMm={PRESET_DIMENSIONS["80mm"].printableWidthMm}
+                label="Print 80mm Calibration"
+                variant="outline"
+                className="w-full h-12 touch-target"
+              />
+              <ReceiptPrintButton
+                targetId="printer-calibration-receipt"
+                {...printSettings}
+                forcePaperWidthMm={PRESET_DIMENSIONS["89mm"].paperWidthMm}
+                forcePrintableWidthMm={PRESET_DIMENSIONS["89mm"].printableWidthMm}
+                label="Print 89mm / 3.5 inch Calibration"
+                variant="outline"
+                className="w-full h-12 touch-target"
+              />
+              <ReceiptPrintButton
+                targetId="printer-calibration-receipt"
+                {...printSettings}
+                label="Print Custom Calibration"
+                variant="outline"
+                className="w-full h-12 touch-target"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg font-serif">
               <Printer className="h-5 w-5 text-gold" />
               Print Test Receipt
             </CardTitle>
@@ -106,6 +162,13 @@ export function HardwareClient({ settings }: HardwareClientProps) {
                 onClick={() => setPreviewSize("80mm")}
               >
                 Preview 80mm
+              </Button>
+              <Button
+                size="sm"
+                variant={previewSize === "89mm" ? "gold" : "outline"}
+                onClick={() => setPreviewSize("89mm")}
+              >
+                Preview 89mm
               </Button>
               <Button
                 size="sm"
@@ -133,7 +196,8 @@ export function HardwareClient({ settings }: HardwareClientProps) {
               <ReceiptPrintButton
                 targetId="printer-test-receipt"
                 {...printSettings}
-                forceSize="58mm"
+                forcePaperWidthMm={PRESET_DIMENSIONS["58mm"].paperWidthMm}
+                forcePrintableWidthMm={PRESET_DIMENSIONS["58mm"].printableWidthMm}
                 forceFontSize="NORMAL"
                 label="Print 58mm Test - Normal"
                 variant="outline"
@@ -142,7 +206,8 @@ export function HardwareClient({ settings }: HardwareClientProps) {
               <ReceiptPrintButton
                 targetId="printer-test-receipt"
                 {...printSettings}
-                forceSize="58mm"
+                forcePaperWidthMm={PRESET_DIMENSIONS["58mm"].paperWidthMm}
+                forcePrintableWidthMm={PRESET_DIMENSIONS["58mm"].printableWidthMm}
                 forceFontSize="LARGE"
                 label="Print 58mm Test - Large"
                 variant="outline"
@@ -151,7 +216,8 @@ export function HardwareClient({ settings }: HardwareClientProps) {
               <ReceiptPrintButton
                 targetId="printer-test-receipt"
                 {...printSettings}
-                forceSize="80mm"
+                forcePaperWidthMm={PRESET_DIMENSIONS["80mm"].paperWidthMm}
+                forcePrintableWidthMm={PRESET_DIMENSIONS["80mm"].printableWidthMm}
                 forceFontSize="NORMAL"
                 label="Print 80mm Test - Normal"
                 variant="outline"
@@ -160,7 +226,8 @@ export function HardwareClient({ settings }: HardwareClientProps) {
               <ReceiptPrintButton
                 targetId="printer-test-receipt"
                 {...printSettings}
-                forceSize="80mm"
+                forcePaperWidthMm={PRESET_DIMENSIONS["80mm"].paperWidthMm}
+                forcePrintableWidthMm={PRESET_DIMENSIONS["80mm"].printableWidthMm}
                 forceFontSize="LARGE"
                 label="Print 80mm Test - Large"
                 variant="outline"
@@ -173,7 +240,7 @@ export function HardwareClient({ settings }: HardwareClientProps) {
                 <ol className="list-decimal list-inside space-y-1 text-muted-foreground mt-2">
                   <li>Pair the Bluetooth printer in Android Settings first.</li>
                   <li>Open the POS in Chrome or the installed PWA.</li>
-                  <li>Tap a print test button.</li>
+                  <li>Tap a calibration or test print button.</li>
                   <li>Select the thermal printer from the Android print dialog.</li>
                   <li>
                     If the printer does not appear, install the printer&apos;s Android print service or app.
@@ -181,15 +248,19 @@ export function HardwareClient({ settings }: HardwareClientProps) {
                 </ol>
               </div>
               <div>
-                <p className="font-medium">If receipt is too small or shifted</p>
+                <p className="font-medium">If receipt prints too small</p>
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground mt-2">
-                  <li>Use 58mm if your paper is small.</li>
-                  <li>Use Large or Extra Large font in Settings.</li>
-                  <li>Use Left alignment.</li>
-                  <li>Disable Fit to Page.</li>
-                  <li>Set scale to 100%.</li>
-                  <li>Use margins none or minimum.</li>
-                  <li>Use portrait orientation.</li>
+                  <li>Android print service is likely scaling to A4.</li>
+                  <li>Select the correct paper size in the Android print dialog.</li>
+                  <li>Turn off Fit to Page.</li>
+                  <li>Use Scale 100%.</li>
+                  <li>Use Portrait.</li>
+                  <li>Use Margins None.</li>
+                  <li>Try 58mm first if the printer label says 58mm.</li>
+                  <li>Try 89mm only if the actual paper width is around 3.5 inches.</li>
+                  <li>
+                    If Android does not allow custom paper size, install or use an ESC/POS Bluetooth print service.
+                  </li>
                 </ul>
               </div>
             </div>
@@ -205,9 +276,9 @@ export function HardwareClient({ settings }: HardwareClientProps) {
               <li>Turn the printer on.</li>
               <li>Pair it with the tablet via Bluetooth settings.</li>
               <li>Install the printer service or app if Android cannot see it.</li>
-              <li>Print 58mm and 80mm test receipts from this page.</li>
+              <li>Print calibration tests from this page and compare the ruler line to real paper.</li>
               <li>
-                Set paper size, font size, alignment, spacing, and bold text in{" "}
+                Set paper size and custom widths in{" "}
                 <Link href="/settings" className="text-gold underline">
                   Settings
                 </Link>.

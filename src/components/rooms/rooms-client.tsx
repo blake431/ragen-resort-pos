@@ -60,6 +60,8 @@ interface RoomsClientProps {
     receiptFooter: string;
     currency: string;
     receiptSize: string;
+    receiptPaperWidthMm: number | null;
+    receiptPrintableWidthMm: number | null;
     receiptAlignment: string;
     receiptFontSize: string;
     receiptBoldText: boolean;
@@ -377,6 +379,8 @@ export function RoomsClient({ rooms, folios, settings }: RoomsClientProps) {
                 <ReceiptPrintButton
                   targetId="room-sale-receipt"
                   receiptSize={settings.receiptSize}
+                  receiptPaperWidthMm={settings.receiptPaperWidthMm}
+                  receiptPrintableWidthMm={settings.receiptPrintableWidthMm}
                   receiptAlignment={settings.receiptAlignment}
                   receiptFontSize={settings.receiptFontSize}
                   receiptBoldText={settings.receiptBoldText}

@@ -4,17 +4,14 @@ import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { printThermalReceipt } from "@/lib/print-receipt";
 import { useToast } from "@/hooks/use-toast";
-import type { ReceiptFontSize, ReceiptPrintTarget, ReceiptSize } from "@/lib/receipt-types";
+import type { ReceiptFontSize, ReceiptLayoutSettings, ReceiptPrintTarget } from "@/lib/receipt-types";
 
-interface ReceiptPrintButtonProps {
+interface ReceiptPrintButtonProps extends ReceiptLayoutSettings {
   targetId: ReceiptPrintTarget;
-  receiptSize?: string | null;
-  receiptAlignment?: string | null;
-  receiptFontSize?: string | null;
-  receiptBoldText?: boolean | null;
-  receiptSpacing?: string | null;
-  receiptCompact?: boolean | null;
-  forceSize?: ReceiptSize;
+  forcePaperWidthMm?: number;
+  forcePrintableWidthMm?: number;
+  /** @deprecated use forcePaperWidthMm */
+  forceSize?: string;
   forceFontSize?: ReceiptFontSize;
   label?: string;
   className?: string;
@@ -24,11 +21,15 @@ interface ReceiptPrintButtonProps {
 export function ReceiptPrintButton({
   targetId,
   receiptSize,
+  receiptPaperWidthMm,
+  receiptPrintableWidthMm,
   receiptAlignment,
   receiptFontSize,
   receiptBoldText,
   receiptSpacing,
   receiptCompact,
+  forcePaperWidthMm,
+  forcePrintableWidthMm,
   forceSize,
   forceFontSize,
   label = "Print Receipt",
@@ -41,11 +42,15 @@ export function ReceiptPrintButton({
     printThermalReceipt({
       targetId,
       receiptSize,
+      receiptPaperWidthMm,
+      receiptPrintableWidthMm,
       receiptAlignment,
       receiptFontSize,
       receiptBoldText,
       receiptSpacing,
       receiptCompact,
+      forcePaperWidthMm,
+      forcePrintableWidthMm,
       forceSize,
       forceFontSize,
       onError: (message) => {

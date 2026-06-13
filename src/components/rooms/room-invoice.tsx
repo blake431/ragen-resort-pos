@@ -3,7 +3,7 @@
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getPaymentMethodLabel, getTotalPaid } from "@/lib/payments";
 import { PaymentMethod, RoomChargeType } from "@prisma/client";
-import { getReceiptLayoutClasses, type ReceiptLayoutSettings } from "@/lib/receipt-types";
+import { getReceiptDimensionStyle, getReceiptLayoutClasses, type ReceiptLayoutSettings } from "@/lib/receipt-types";
 
 interface RoomInvoiceProps {
   orderNumber: string;
@@ -59,7 +59,7 @@ export function RoomInvoice(props: RoomInvoiceProps) {
   const balance = Math.max(0, props.grandTotal - totalPaid);
 
   return (
-    <div id="room-invoice" className={getReceiptLayoutClasses(props.settings)}>
+    <div id="room-invoice" className={getReceiptLayoutClasses(props.settings)} style={getReceiptDimensionStyle(props.settings)}>
       <div className="receipt-header">
         <p className="receipt-business-name uppercase">RAGEN RESORT POS</p>
         <p className="receipt-title">{props.settings.businessName}</p>

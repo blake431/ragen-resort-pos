@@ -1,12 +1,17 @@
 "use client";
 
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { getReceiptLayoutClasses, type ReceiptLayoutSettings } from "@/lib/receipt-types";
+import {
+  getReceiptDimensionStyle,
+  getReceiptLayoutClasses,
+  type ReceiptLayoutSettings,
+  type ReceiptPaperPreset,
+} from "@/lib/receipt-types";
 
 interface PrinterTestReceiptProps extends ReceiptLayoutSettings {
   businessName: string;
   currency: string;
-  previewSize?: "58mm" | "80mm";
+  previewSize?: ReceiptPaperPreset;
   previewFontSize?: "SMALL" | "NORMAL" | "LARGE" | "EXTRA_LARGE";
   label?: string;
 }
@@ -20,26 +25,35 @@ export function PrinterTestReceipt({
   receiptBoldText,
   receiptSpacing,
   receiptCompact,
+  receiptPaperWidthMm,
+  receiptPrintableWidthMm,
   previewSize,
   previewFontSize,
   label = "Printer Test",
 }: PrinterTestReceiptProps) {
   const now = new Date();
+  const layoutSettings: ReceiptLayoutSettings = {
+    receiptSize,
+    receiptAlignment,
+    receiptFontSize,
+    receiptBoldText,
+    receiptSpacing,
+    receiptCompact,
+    receiptPaperWidthMm,
+    receiptPrintableWidthMm,
+  };
   const layout = getReceiptLayoutClasses(
-    {
-      receiptSize,
-      receiptAlignment,
-      receiptFontSize,
-      receiptBoldText,
-      receiptSpacing,
-      receiptCompact,
-    },
+    layoutSettings,
     previewSize,
     previewFontSize
   );
+  const style = getReceiptDimensionStyle(
+    layoutSettings,
+    previewSize ? { receiptSize: previewSize } : undefined
+  );
 
   return (
-    <div id="printer-test-receipt" className={layout}>
+    <div id="printer-test-receipt" className={layout} style={style}>
       <div className="receipt-header">
         <p className="receipt-business-name uppercase">RAGEN RESORT POS</p>
         <p className="receipt-title">{businessName}</p>

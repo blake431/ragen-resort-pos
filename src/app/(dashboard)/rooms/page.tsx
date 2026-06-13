@@ -20,6 +20,8 @@ export default async function RoomsPage() {
         receiptFooter: settings.receiptFooter,
         currency: settings.currency,
         receiptSize: settings.receiptSize,
+        receiptPaperWidthMm: settings.receiptPaperWidthMm,
+        receiptPrintableWidthMm: settings.receiptPrintableWidthMm,
         receiptAlignment: settings.receiptAlignment,
         receiptFontSize: settings.receiptFontSize,
         receiptBoldText: settings.receiptBoldText,

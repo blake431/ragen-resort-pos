@@ -3,7 +3,7 @@
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getPaymentMethodLabel, getTotalPaid } from "@/lib/payments";
 import { PaymentMethod } from "@prisma/client";
-import { getReceiptLayoutClasses, type ReceiptLayoutSettings } from "@/lib/receipt-types";
+import { getReceiptDimensionStyle, getReceiptLayoutClasses, type ReceiptLayoutSettings } from "@/lib/receipt-types";
 
 interface RoomSaleReceiptProps {
   orderNumber: string;
@@ -47,7 +47,7 @@ export function RoomSaleReceipt({
   );
 
   return (
-    <div id="room-sale-receipt" className={getReceiptLayoutClasses(settings)}>
+    <div id="room-sale-receipt" className={getReceiptLayoutClasses(settings)} style={getReceiptDimensionStyle(settings)}>
       <div className="receipt-header">
         <p className="receipt-business-name uppercase">RAGEN RESORT POS</p>
         <p className="receipt-title">{settings.businessName}</p>

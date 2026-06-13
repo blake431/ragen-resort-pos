@@ -378,6 +378,8 @@ export function POSClient({ products, categories, taxRate }: POSPageProps) {
               <ReceiptPrintButton
                 targetId="receipt"
                 receiptSize={settings.receiptSize}
+                receiptPaperWidthMm={settings.receiptPaperWidthMm}
+                receiptPrintableWidthMm={settings.receiptPrintableWidthMm}
                 receiptAlignment={settings.receiptAlignment}
                 receiptFontSize={settings.receiptFontSize}
                 receiptBoldText={settings.receiptBoldText}

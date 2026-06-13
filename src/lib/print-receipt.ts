@@ -1,27 +1,31 @@
 import {
   normalizeReceiptAlignment,
   normalizeReceiptFontSize,
-  normalizeReceiptSize,
+  normalizeReceiptPaperPreset,
   normalizeReceiptSpacing,
   receiptAlignmentClass,
   receiptFontSizeClass,
   receiptPrintSizeClass,
   receiptSpacingClass,
+  resolveReceiptDimensions,
   type ReceiptFontSize,
+  type ReceiptLayoutSettings,
   type ReceiptPrintTarget,
-  type ReceiptSize,
 } from "@/lib/receipt-types";
 
 export const PRINT_ERROR_MESSAGE =
   "Could not print. Check Bluetooth pairing, printer power, paper, and Android print service.";
 
-const PRINT_STYLE_ID = "thermal-print-page-size";
+const PRINT_PAGE_STYLE_ID = "thermal-print-page-size";
+const PRINT_LAYOUT_STYLE_ID = "thermal-print-layout-size";
 const PORTAL_ID = "thermal-print-portal";
 
 const BODY_PRINT_CLASSES = [
   "thermal-printing",
   "receipt-58mm",
   "receipt-80mm",
+  "receipt-89mm",
+  "receipt-custom",
   "receipt-align-left",
   "receipt-align-center",
   "receipt-font-small",
@@ -35,34 +39,67 @@ const BODY_PRINT_CLASSES = [
   "receipt-compact",
 ] as const;
 
-export interface PrintReceiptOptions {
+export interface PrintReceiptOptions extends ReceiptLayoutSettings {
   targetId?: ReceiptPrintTarget;
-  receiptSize?: string | null;
-  receiptAlignment?: string | null;
-  receiptFontSize?: string | null;
-  receiptBoldText?: boolean | null;
-  receiptSpacing?: string | null;
-  /** @deprecated use receiptSpacing */
-  receiptCompact?: boolean | null;
-  forceSize?: ReceiptSize;
+  forcePaperWidthMm?: number;
+  forcePrintableWidthMm?: number;
+  /** @deprecated use forcePaperWidthMm */
+  forceSize?: string;
   forceFontSize?: ReceiptFontSize;
   onError?: (message: string) => void;
 }
 
-function injectPageStyle(size: ReceiptSize) {
+function injectPageStyle(paperWidthMm: number) {
   removePageStyle();
   const style = document.createElement("style");
-  style.id = PRINT_STYLE_ID;
-  style.textContent = `@page { size: ${size} auto; margin: 0; }`;
+  style.id = PRINT_PAGE_STYLE_ID;
+  style.textContent = `@page { size: ${paperWidthMm}mm auto; margin: 0; }`;
   document.head.appendChild(style);
 }
 
+function injectLayoutStyle(paperWidthMm: number, printableWidthMm: number) {
+  removeLayoutStyle();
+  const style = document.createElement("style");
+  style.id = PRINT_LAYOUT_STYLE_ID;
+  style.textContent = `
+    html.thermal-printing,
+    body.thermal-printing {
+      width: ${paperWidthMm}mm !important;
+      min-width: ${paperWidthMm}mm !important;
+      max-width: ${paperWidthMm}mm !important;
+    }
+    body.thermal-printing #thermal-print-portal {
+      width: ${paperWidthMm}mm !important;
+      min-width: ${paperWidthMm}mm !important;
+      max-width: ${paperWidthMm}mm !important;
+    }
+    body.thermal-printing .thermal-receipt-root {
+      width: ${printableWidthMm}mm !important;
+      min-width: ${printableWidthMm}mm !important;
+      max-width: ${printableWidthMm}mm !important;
+    }
+  `;
+  document.head.appendChild(style);
+
+  document.documentElement.style.setProperty("--thermal-paper-width", `${paperWidthMm}mm`);
+  document.documentElement.style.setProperty(
+    "--thermal-printable-width",
+    `${printableWidthMm}mm`
+  );
+}
+
 function removePageStyle() {
-  document.getElementById(PRINT_STYLE_ID)?.remove();
+  document.getElementById(PRINT_PAGE_STYLE_ID)?.remove();
+}
+
+function removeLayoutStyle() {
+  document.getElementById(PRINT_LAYOUT_STYLE_ID)?.remove();
+  document.documentElement.style.removeProperty("--thermal-paper-width");
+  document.documentElement.style.removeProperty("--thermal-printable-width");
 }
 
 function applyPrintClasses(options: {
-  size: ReceiptSize;
+  preset: string;
   alignment: ReturnType<typeof normalizeReceiptAlignment>;
   fontSize: ReceiptFontSize;
   spacing: ReturnType<typeof normalizeReceiptSpacing>;
@@ -70,7 +107,7 @@ function applyPrintClasses(options: {
 }) {
   const classes = [
     "thermal-printing",
-    receiptPrintSizeClass(options.size),
+    receiptPrintSizeClass(options.preset),
     receiptAlignmentClass(options.alignment),
     receiptFontSizeClass(options.fontSize),
     receiptSpacingClass(options.spacing),
@@ -118,7 +155,16 @@ export function printThermalReceipt(options: PrintReceiptOptions = {}): boolean 
     return false;
   }
 
-  const size = normalizeReceiptSize(options.forceSize ?? options.receiptSize);
+  const preset = normalizeReceiptPaperPreset(
+    options.forceSize ?? options.receiptSize
+  );
+  const dimensions = resolveReceiptDimensions({
+    receiptSize: preset,
+    receiptPaperWidthMm: options.receiptPaperWidthMm,
+    receiptPrintableWidthMm: options.receiptPrintableWidthMm,
+    forcePaperWidthMm: options.forcePaperWidthMm,
+    forcePrintableWidthMm: options.forcePrintableWidthMm,
+  });
   const alignment = normalizeReceiptAlignment(options.receiptAlignment);
   const fontSize = normalizeReceiptFontSize(
     options.forceFontSize ?? options.receiptFontSize
@@ -129,14 +175,22 @@ export function printThermalReceipt(options: PrintReceiptOptions = {}): boolean 
   const cleanup = () => {
     removePrintPortal();
     removePageStyle();
+    removeLayoutStyle();
     removePrintClasses();
     window.removeEventListener("afterprint", cleanup);
   };
 
   try {
     mountPrintPortal(source);
-    injectPageStyle(size);
-    applyPrintClasses({ size, alignment, fontSize, spacing, bold });
+    injectPageStyle(dimensions.paperWidthMm);
+    injectLayoutStyle(dimensions.paperWidthMm, dimensions.printableWidthMm);
+    applyPrintClasses({
+      preset: dimensions.preset === "CUSTOM" ? "CUSTOM" : dimensions.preset,
+      alignment,
+      fontSize,
+      spacing,
+      bold,
+    });
     window.addEventListener("afterprint", cleanup);
 
     requestAnimationFrame(() => {

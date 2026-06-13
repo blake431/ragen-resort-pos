@@ -41,6 +41,8 @@ export default async function RoomAccountPage({
         email: settings.email,
         currency: settings.currency,
         receiptSize: settings.receiptSize,
+        receiptPaperWidthMm: settings.receiptPaperWidthMm,
+        receiptPrintableWidthMm: settings.receiptPrintableWidthMm,
         receiptAlignment: settings.receiptAlignment,
         receiptFontSize: settings.receiptFontSize,
         receiptBoldText: settings.receiptBoldText,

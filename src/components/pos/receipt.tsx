@@ -7,7 +7,7 @@ import {
   isSplitOrder,
 } from "@/lib/payments";
 import { PaymentMethod } from "@prisma/client";
-import { getReceiptLayoutClasses, type ReceiptLayoutSettings } from "@/lib/receipt-types";
+import { getReceiptDimensionStyle, getReceiptLayoutClasses, type ReceiptLayoutSettings } from "@/lib/receipt-types";
 
 interface ReceiptProps {
   order: {
@@ -46,7 +46,7 @@ export function Receipt({ order, settings }: ReceiptProps) {
   const mpesaPayments = payments.filter((p) => p.method === "MPESA");
 
   return (
-    <div id="receipt" className={getReceiptLayoutClasses(settings)}>
+    <div id="receipt" className={getReceiptLayoutClasses(settings)} style={getReceiptDimensionStyle(settings)}>
       <div className="receipt-header">
         <p className="receipt-business-name uppercase">RAGEN RESORT POS</p>
         <p className="receipt-title">{settings.businessName}</p>

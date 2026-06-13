@@ -16,6 +16,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { updateSettings } from "@/lib/actions/dashboard";
+import {
+  defaultReceiptSettingsForPreset,
+  getPresetDimensions,
+  type ReceiptPaperPreset,
+} from "@/lib/receipt-types";
 import { useToast } from "@/hooks/use-toast";
 import { Printer } from "lucide-react";
 
@@ -27,6 +32,8 @@ interface SettingsClientProps {
     email: string;
     receiptFooter: string;
     receiptSize: string;
+    receiptPaperWidthMm: number | null;
+    receiptPrintableWidthMm: number | null;
     receiptAlignment: string;
     receiptFontSize: string;
     receiptBoldText: boolean;
@@ -40,11 +47,34 @@ interface SettingsClientProps {
 export function SettingsClient({ settings: initial }: SettingsClientProps) {
   const [loading, setLoading] = useState(false);
   const [receiptSize, setReceiptSize] = useState(initial.receiptSize || "80mm");
+  const [paperWidthMm, setPaperWidthMm] = useState(
+    initial.receiptPaperWidthMm ?? getPresetDimensions(initial.receiptSize).paperWidthMm
+  );
+  const [printableWidthMm, setPrintableWidthMm] = useState(
+    initial.receiptPrintableWidthMm ?? getPresetDimensions(initial.receiptSize).printableWidthMm
+  );
   const [receiptAlignment, setReceiptAlignment] = useState(initial.receiptAlignment || "LEFT");
   const [receiptFontSize, setReceiptFontSize] = useState(initial.receiptFontSize || "NORMAL");
   const [receiptBoldText, setReceiptBoldText] = useState(initial.receiptBoldText ?? true);
   const [receiptSpacing, setReceiptSpacing] = useState(initial.receiptSpacing || "NORMAL");
   const { toast } = useToast();
+
+  const handlePresetChange = (preset: ReceiptPaperPreset) => {
+    setReceiptSize(preset);
+    if (preset !== "CUSTOM") {
+      const defaults = defaultReceiptSettingsForPreset(preset);
+      setPaperWidthMm(defaults.receiptPaperWidthMm);
+      setPrintableWidthMm(defaults.receiptPrintableWidthMm);
+      if (preset === "58mm") {
+        setReceiptFontSize("LARGE");
+        setReceiptAlignment("LEFT");
+        setReceiptBoldText(true);
+      } else if (preset === "89mm") {
+        setReceiptFontSize("NORMAL");
+        setReceiptBoldText(true);
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -58,6 +88,8 @@ export function SettingsClient({ settings: initial }: SettingsClientProps) {
         email: form.get("email") as string,
         receiptFooter: form.get("receiptFooter") as string,
         receiptSize,
+        receiptPaperWidthMm: paperWidthMm,
+        receiptPrintableWidthMm: printableWidthMm,
         receiptAlignment,
         receiptFontSize,
         receiptBoldText,
@@ -119,19 +151,53 @@ export function SettingsClient({ settings: initial }: SettingsClientProps) {
 
             <div className="rounded-lg border border-border/60 p-4 space-y-4">
               <p className="font-medium text-sm">Receipt / Printer</p>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Receipt Paper Size</Label>
-                  <Select value={receiptSize} onValueChange={setReceiptSize}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Paper size" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="58mm">58mm thermal</SelectItem>
-                      <SelectItem value="80mm">80mm thermal</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="space-y-2">
+                <Label>Receipt Paper Size</Label>
+                <Select value={receiptSize} onValueChange={(v) => handlePresetChange(v as ReceiptPaperPreset)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Paper size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="58mm">58mm</SelectItem>
+                    <SelectItem value="80mm">80mm</SelectItem>
+                    <SelectItem value="89mm">3.5 inch / 89mm</SelectItem>
+                    <SelectItem value="CUSTOM">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {receiptSize === "CUSTOM" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Custom paper width (mm)</Label>
+                    <Input
+                      type="number"
+                      min={48}
+                      max={100}
+                      value={paperWidthMm}
+                      onChange={(e) => setPaperWidthMm(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Custom printable width (mm)</Label>
+                    <Input
+                      type="number"
+                      min={40}
+                      max={100}
+                      value={printableWidthMm}
+                      onChange={(e) => setPrintableWidthMm(Number(e.target.value))}
+                    />
+                  </div>
                 </div>
+              )}
+
+              {receiptSize !== "CUSTOM" && (
+                <p className="text-xs text-muted-foreground">
+                  Paper {paperWidthMm}mm · printable {printableWidthMm}mm
+                </p>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Receipt Alignment</Label>
                   <Select value={receiptAlignment} onValueChange={setReceiptAlignment}>
@@ -183,7 +249,7 @@ export function SettingsClient({ settings: initial }: SettingsClientProps) {
                 <Label htmlFor="receiptBoldText">Bold receipt text (high contrast)</Label>
               </div>
               <p className="text-xs text-muted-foreground">
-                Tip: use Large font on 58mm paper and Left alignment if text looks small or shifted.
+                Use Hardware → Print Calibration Test to verify exact paper width on your printer.
               </p>
             </div>
 
