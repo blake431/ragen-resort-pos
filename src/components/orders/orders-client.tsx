@@ -5,6 +5,12 @@ import { PageHeader } from "@/components/layout/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { cancelOrder, deleteOrder } from "@/lib/actions/products";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -15,8 +21,10 @@ import { PaymentMethod } from "@prisma/client";
 import { useToast } from "@/hooks/use-toast";
 import { useRequireConnection } from "@/hooks/use-require-connection";
 import { useRouter } from "next/navigation";
-import { X, Trash2 } from "lucide-react";
+import { X, Trash2, Printer } from "lucide-react";
 import { OrderStatus } from "@prisma/client";
+import { Receipt } from "@/components/pos/receipt";
+import { ReceiptPrintButton } from "@/components/pos/receipt-print-button";
 
 interface OrdersClientProps {
   orders: Array<{
@@ -24,10 +32,18 @@ interface OrdersClientProps {
     orderNumber: string;
     status: OrderStatus;
     type: string;
+    subtotal: number;
+    discount: number;
+    tax: number;
     total: number;
     createdAt: Date;
     user: { name: string };
-    items: Array<{ quantity: number; product?: { name: string } | null }>;
+    items: Array<{
+      quantity: number;
+      unitPrice: number;
+      total: number;
+      product?: { name: string } | null;
+    }>;
     changeGiven?: number;
     payments: Array<{
       id: string;
@@ -36,6 +52,15 @@ interface OrdersClientProps {
       reference?: string | null;
     }>;
   }>;
+  settings: {
+    businessName: string;
+    businessAddress: string;
+    phone: string;
+    email: string;
+    receiptFooter: string;
+    currency: string;
+    receiptSize: string;
+  };
   loadError?: string;
 }
 
@@ -44,8 +69,9 @@ const statusVariant: Record<string, "default" | "secondary" | "success" | "warni
   SERVED: "success", CANCELLED: "destructive", ON_HOLD: "secondary",
 };
 
-export function OrdersClient({ orders, loadError }: OrdersClientProps) {
+export function OrdersClient({ orders, settings, loadError }: OrdersClientProps) {
   const [confirm, setConfirm] = useState<{ action: "cancel" | "delete"; id: string } | null>(null);
+  const [reprintOrder, setReprintOrder] = useState<OrdersClientProps["orders"][0] | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { blockIfOffline, disabled: offlineDisabled } = useRequireConnection();
@@ -56,6 +82,11 @@ export function OrdersClient({ orders, loadError }: OrdersClientProps) {
 
   const canDelete = (status: OrderStatus) =>
     ["CANCELLED", "ON_HOLD", "PENDING"].includes(status);
+
+  const canReprint = (order: OrdersClientProps["orders"][0]) =>
+    order.status === "COMPLETED" &&
+    order.items.length > 0 &&
+    order.items.every((i) => i.product?.name);
 
   return (
     <div>
@@ -88,7 +119,7 @@ export function OrdersClient({ orders, loadError }: OrdersClientProps) {
                       {order.items.map((i) => `${i.quantity}x ${i.product?.name ?? "Item"}`).join(", ")}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <div className="text-right min-w-[140px]">
                       <p className="text-lg font-bold text-gold">{formatCurrency(order.total)}</p>
                       {isSplitOrder(
@@ -99,6 +130,11 @@ export function OrdersClient({ orders, loadError }: OrdersClientProps) {
                         </Badge>
                       )}
                     </div>
+                    {canReprint(order) && (
+                      <Button size="sm" variant="outline" onClick={() => setReprintOrder(order)}>
+                        <Printer className="h-4 w-4 mr-1" /> Reprint
+                      </Button>
+                    )}
                     {canCancel(order.status) && order.status !== "CANCELLED" && (
                       <Button size="sm" variant="outline" disabled={offlineDisabled} onClick={() => setConfirm({ action: "cancel", id: order.id })}>
                         <X className="h-4 w-4 mr-1" /> Cancel
@@ -127,6 +163,48 @@ export function OrdersClient({ orders, loadError }: OrdersClientProps) {
           ))
         )}
       </div>
+
+      <Dialog open={!!reprintOrder} onOpenChange={(open) => !open && setReprintOrder(null)}>
+        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="print:hidden">
+            <DialogTitle className="font-serif">Reprint Receipt</DialogTitle>
+          </DialogHeader>
+          {reprintOrder && (
+            <>
+              <Receipt
+                order={{
+                  orderNumber: reprintOrder.orderNumber,
+                  items: reprintOrder.items.map((i) => ({
+                    product: { name: i.product!.name },
+                    quantity: i.quantity,
+                    unitPrice: i.unitPrice,
+                    total: i.total,
+                  })),
+                  subtotal: reprintOrder.subtotal,
+                  discount: reprintOrder.discount,
+                  tax: reprintOrder.tax,
+                  total: reprintOrder.total,
+                  changeGiven: reprintOrder.changeGiven,
+                  payments: reprintOrder.payments,
+                  user: reprintOrder.user,
+                  createdAt: reprintOrder.createdAt,
+                }}
+                settings={settings}
+              />
+              <div className="flex gap-2 print:hidden">
+                <ReceiptPrintButton
+                  targetId="receipt"
+                  receiptSize={settings.receiptSize}
+                  className="flex-1 h-12 touch-target"
+                />
+                <Button variant="outline" className="flex-1" onClick={() => setReprintOrder(null)}>
+                  Close
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={!!confirm}

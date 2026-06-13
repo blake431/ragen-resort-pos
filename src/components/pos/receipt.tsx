@@ -7,6 +7,7 @@ import {
   isSplitOrder,
 } from "@/lib/payments";
 import { PaymentMethod } from "@prisma/client";
+import { receiptSizeClass } from "@/lib/receipt-types";
 
 interface ReceiptProps {
   order: {
@@ -28,6 +29,7 @@ interface ReceiptProps {
     email: string;
     receiptFooter: string;
     currency: string;
+    receiptSize?: string;
   };
 }
 
@@ -42,41 +44,46 @@ export function Receipt({ order, settings }: ReceiptProps) {
   );
   const single =
     payments.length === 1 && !split && payments[0].method !== "SPLIT";
+  const mpesaPayments = payments.filter((p) => p.method === "MPESA");
 
   return (
-    <div id="receipt" className="receipt-thermal mx-auto p-3 md:p-4">
-      <div className="text-center mb-3">
-        <h2 className="text-sm font-bold uppercase">{settings.businessName}</h2>
-        {settings.businessAddress && <p className="text-[10px] mt-1">{settings.businessAddress}</p>}
+    <div
+      id="receipt"
+      className={`receipt-thermal mx-auto p-2 ${receiptSizeClass(settings.receiptSize)}`}
+    >
+      <div className="text-center mb-2">
+        <h2 className="text-xs font-bold uppercase tracking-wide">RAGEN RESORT POS</h2>
+        <p className="text-[10px] font-semibold mt-0.5">{settings.businessName}</p>
+        {settings.businessAddress && <p className="text-[10px] mt-0.5">{settings.businessAddress}</p>}
         {settings.phone && <p className="text-[10px]">Tel: {settings.phone}</p>}
       </div>
 
-      <div className="border-t border-b border-dashed border-gray-500 py-2 mb-2 text-[10px]">
+      <div className="border-t border-b border-dashed border-gray-500 py-1.5 mb-1.5 text-[10px] space-y-0.5">
         <p>Receipt: {order.orderNumber}</p>
         <p>Date: {formatDate(order.createdAt)}</p>
         <p>Cashier: {order.user.name}</p>
       </div>
 
-      <table className="w-full mb-2 text-[10px]">
+      <table className="w-full mb-1.5 text-[10px]">
         <thead>
           <tr className="border-b border-gray-400">
-            <th className="text-left py-1">Item</th>
-            <th className="text-center py-1 w-8">Qty</th>
-            <th className="text-right py-1">Amt</th>
+            <th className="text-left py-0.5">Item</th>
+            <th className="text-center py-0.5 w-7">Qty</th>
+            <th className="text-right py-0.5">Amt</th>
           </tr>
         </thead>
         <tbody>
           {order.items.map((item, i) => (
             <tr key={i}>
-              <td className="py-1 pr-1">{item.product.name}</td>
-              <td className="text-center py-1">{item.quantity}</td>
-              <td className="text-right py-1">{formatCurrency(item.total, settings.currency)}</td>
+              <td className="py-0.5 pr-1">{item.product.name}</td>
+              <td className="text-center py-0.5">{item.quantity}</td>
+              <td className="text-right py-0.5">{formatCurrency(item.total, settings.currency)}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <div className="border-t border-dashed border-gray-500 pt-2 space-y-0.5 text-[10px]">
+      <div className="border-t border-dashed border-gray-500 pt-1.5 space-y-0.5 text-[10px]">
         <div className="flex justify-between">
           <span>Subtotal</span>
           <span>{formatCurrency(order.subtotal, settings.currency)}</span>
@@ -91,18 +98,18 @@ export function Receipt({ order, settings }: ReceiptProps) {
           <span>Tax</span>
           <span>{formatCurrency(order.tax, settings.currency)}</span>
         </div>
-        <div className="flex justify-between font-bold text-xs pt-1 border-t border-gray-400 mt-1">
+        <div className="flex justify-between font-bold text-[11px] pt-1 border-t border-gray-400 mt-1">
           <span>TOTAL</span>
           <span>{formatCurrency(order.total, settings.currency)}</span>
         </div>
       </div>
 
-      <div className="mt-2 pt-2 border-t border-dashed border-gray-500 text-[10px]">
-        <p className="font-bold mb-1">Payment Summary</p>
+      <div className="mt-1.5 pt-1.5 border-t border-dashed border-gray-500 text-[10px]">
+        <p className="font-bold mb-0.5">Payment</p>
         {single ? (
           <>
             <div className="flex justify-between">
-              <span>Payment Method</span>
+              <span>Method</span>
               <span>{getPaymentMethodLabel(payments[0].method)}</span>
             </div>
             <div className="flex justify-between">
@@ -124,29 +131,40 @@ export function Receipt({ order, settings }: ReceiptProps) {
                   <span>{formatCurrency(p.amount, settings.currency)}</span>
                 </div>
                 {p.reference && (
-                  <p className="text-[9px] pl-1">
+                  <p className="text-[9px]">
                     {getPaymentMethodLabel(p.method)} Ref: {p.reference}
                   </p>
                 )}
               </div>
             ))}
-            <div className="flex justify-between font-semibold border-t border-gray-400 mt-1 pt-1">
+            <div className="flex justify-between font-semibold border-t border-gray-400 mt-1 pt-0.5">
               <span>Total Paid</span>
               <span>{formatCurrency(totalPaid, settings.currency)}</span>
             </div>
           </>
         )}
-        <div className="flex justify-between mt-1">
+        {mpesaPayments.length > 0 && mpesaPayments.some((p) => p.reference) && (
+          <div className="mt-1 pt-1 border-t border-dotted border-gray-400">
+            {mpesaPayments
+              .filter((p) => p.reference)
+              .map((p, i) => (
+                <p key={i}>M-Pesa Ref: {p.reference}</p>
+              ))}
+          </div>
+        )}
+        <div className="flex justify-between mt-0.5">
           <span>Change</span>
           <span>{formatCurrency(changeGiven, settings.currency)}</span>
         </div>
       </div>
 
-      <p className="text-center mt-3 text-[10px] italic">{settings.receiptFooter}</p>
+      {settings.receiptFooter && (
+        <p className="text-center mt-2 text-[10px] italic border-t border-dashed border-gray-400 pt-1.5">
+          {settings.receiptFooter}
+        </p>
+      )}
     </div>
   );
 }
 
-export function printReceipt() {
-  window.print();
-}
+export { printThermalReceipt as printReceipt } from "@/lib/print-receipt";

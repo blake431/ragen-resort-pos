@@ -55,6 +55,7 @@ import {
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { PaymentDialog, PaymentLineDraft } from "@/components/pos/payment-dialog";
 import { RoomInvoice } from "@/components/rooms/room-invoice";
+import { ReceiptPrintButton } from "@/components/pos/receipt-print-button";
 import { RoomChargeType, RoomStatus } from "@prisma/client";
 
 type RoomAccount = NonNullable<Awaited<ReturnType<typeof import("@/lib/actions/room-billing").getRoomAccount>>>;
@@ -68,6 +69,7 @@ interface RoomAccountClientProps {
     phone: string;
     email: string;
     currency: string;
+    receiptSize: string;
   };
   isAdmin: boolean;
 }
@@ -228,8 +230,6 @@ export function RoomAccountClient({ account, products, settings, isAdmin }: Room
       setLoading(false);
     }
   };
-
-  const printInvoice = () => window.print();
 
   return (
     <div>
@@ -652,7 +652,12 @@ export function RoomAccountClient({ account, products, settings, isAdmin }: Room
                 settings={settings}
               />
               <div className="flex gap-2 print:hidden">
-                <Button variant="gold" className="flex-1" onClick={printInvoice}>Print Invoice</Button>
+                <ReceiptPrintButton
+                  targetId="room-invoice"
+                  receiptSize={settings.receiptSize}
+                  label="Print Invoice"
+                  className="flex-1"
+                />
                 <Button variant="outline" className="flex-1" onClick={() => setInvoiceOrder(null)}>Close</Button>
               </div>
             </>

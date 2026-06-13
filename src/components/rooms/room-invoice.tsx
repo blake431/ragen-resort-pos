@@ -3,6 +3,7 @@
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getPaymentMethodLabel, getTotalPaid } from "@/lib/payments";
 import { PaymentMethod, RoomChargeType } from "@prisma/client";
+import { receiptSizeClass } from "@/lib/receipt-types";
 
 interface RoomInvoiceProps {
   orderNumber: string;
@@ -30,6 +31,7 @@ interface RoomInvoiceProps {
     phone: string;
     email: string;
     currency: string;
+    receiptSize?: string;
   };
 }
 
@@ -58,33 +60,35 @@ export function RoomInvoice(props: RoomInvoiceProps) {
   const balance = Math.max(0, props.grandTotal - totalPaid);
 
   return (
-    <div id="room-invoice" className="receipt-thermal mx-auto p-4 max-w-lg bg-white text-black print:p-2">
-      <div className="text-center mb-4 border-b-2 border-emerald-700 pb-3">
-        <h1 className="text-lg font-serif font-bold text-emerald-800 uppercase tracking-wide">
-          {props.settings.businessName}
-        </h1>
-        <p className="text-xs text-gray-600 mt-1">Room Guest Invoice</p>
+    <div
+      id="room-invoice"
+      className={`receipt-thermal mx-auto p-2 ${receiptSizeClass(props.settings.receiptSize)}`}
+    >
+      <div className="text-center mb-2 border-b border-dashed border-gray-500 pb-1.5">
+        <h2 className="text-xs font-bold uppercase">RAGEN RESORT POS</h2>
+        <p className="text-[10px] font-semibold mt-0.5">{props.settings.businessName}</p>
+        <p className="text-[10px] mt-0.5">Room Checkout Invoice</p>
         {props.settings.businessAddress && (
-          <p className="text-[10px] mt-1">{props.settings.businessAddress}</p>
+          <p className="text-[10px] mt-0.5">{props.settings.businessAddress}</p>
         )}
         {props.settings.phone && <p className="text-[10px]">Tel: {props.settings.phone}</p>}
       </div>
 
-      <div className="text-[11px] space-y-1 mb-3">
-        <p><span className="font-semibold">Invoice:</span> {props.orderNumber}</p>
-        <p><span className="font-semibold">Date:</span> {formatDate(props.completedAt)}</p>
-        <p><span className="font-semibold">Cashier:</span> {props.cashierName}</p>
+      <div className="text-[10px] space-y-0.5 mb-2">
+        <p>Invoice: {props.orderNumber}</p>
+        <p>Date: {formatDate(props.completedAt)}</p>
+        <p>Cashier: {props.cashierName}</p>
       </div>
 
-      <div className="border border-emerald-200 rounded p-2 mb-3 text-[11px] bg-emerald-50/50">
-        <p className="font-serif font-semibold text-emerald-800 mb-1">Guest Details</p>
+      <div className="border border-dashed border-gray-400 p-1.5 mb-2 text-[10px]">
+        <p className="font-semibold mb-0.5">Guest</p>
         <p>{props.guest.fullName}</p>
         <p>{props.guest.phone}</p>
         {props.guest.email && <p>{props.guest.email}</p>}
       </div>
 
-      <div className="border border-amber-200 rounded p-2 mb-3 text-[11px] bg-amber-50/50">
-        <p className="font-serif font-semibold text-amber-800 mb-1">Room Details</p>
+      <div className="border border-dashed border-gray-400 p-1.5 mb-2 text-[10px]">
+        <p className="font-semibold mb-0.5">Room</p>
         <p>Room {props.room.number} — {props.room.type}</p>
         <p>Check-in: {formatDate(props.checkIn)}</p>
         <p>Check-out: {formatDate(props.checkOut)}</p>
@@ -123,31 +127,35 @@ export function RoomInvoice(props: RoomInvoiceProps) {
         />
       )}
 
-      <div className="border-t-2 border-emerald-700 pt-2 mt-3 space-y-1 text-[11px]">
-        <div className="flex justify-between font-bold text-base">
+      <div className="border-t border-dashed border-gray-500 pt-1.5 mt-2 space-y-0.5 text-[10px]">
+        <div className="flex justify-between font-bold">
           <span>Grand Total</span>
-          <span className="text-amber-700">{formatCurrency(props.grandTotal, props.settings.currency)}</span>
+          <span>{formatCurrency(props.grandTotal, props.settings.currency)}</span>
         </div>
       </div>
 
       {props.payments.length > 0 && (
-        <div className="mt-3 text-[11px]">
-          <p className="font-serif font-semibold text-emerald-800 mb-1">Payments</p>
+        <div className="mt-2 text-[10px] border-t border-dashed border-gray-500 pt-1.5">
+          <p className="font-semibold mb-0.5">Payments</p>
           {props.payments.map((p, i) => (
-            <div key={i} className="flex justify-between">
-              <span>
-                {getPaymentMethodLabel(p.method)}
-                {p.reference ? ` (${p.reference})` : ""}
-              </span>
-              <span>{formatCurrency(p.amount, props.settings.currency)}</span>
+            <div key={i}>
+              <div className="flex justify-between">
+                <span>{getPaymentMethodLabel(p.method)}</span>
+                <span>{formatCurrency(p.amount, props.settings.currency)}</span>
+              </div>
+              {p.reference && (
+                <p className="text-[9px]">
+                  {p.method === "MPESA" ? "M-Pesa" : getPaymentMethodLabel(p.method)} Ref: {p.reference}
+                </p>
+              )}
             </div>
           ))}
-          <div className="flex justify-between font-semibold mt-1 border-t pt-1">
+          <div className="flex justify-between font-semibold mt-0.5 border-t border-gray-400 pt-0.5">
             <span>Total Paid</span>
             <span>{formatCurrency(totalPaid, props.settings.currency)}</span>
           </div>
           {balance > 0.009 && (
-            <div className="flex justify-between text-red-600 font-semibold">
+            <div className="flex justify-between font-semibold">
               <span>Balance Due</span>
               <span>{formatCurrency(balance, props.settings.currency)}</span>
             </div>
@@ -155,7 +163,7 @@ export function RoomInvoice(props: RoomInvoiceProps) {
         </div>
       )}
 
-      <p className="text-center text-[10px] text-gray-500 mt-4 pt-2 border-t">
+      <p className="text-center text-[10px] mt-2 pt-1.5 border-t border-dashed border-gray-400">
         Thank you for staying at {props.settings.businessName}
       </p>
     </div>
@@ -173,7 +181,7 @@ function Section({
 }) {
   return (
     <div className="mb-3">
-      <p className="font-serif font-semibold text-sm text-emerald-800 mb-1">{title}</p>
+      <p className="font-semibold text-[10px] mb-0.5">{title}</p>
       <table className="w-full text-[10px]">
         <thead>
           <tr className="border-b border-gray-300">

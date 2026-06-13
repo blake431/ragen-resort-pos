@@ -397,6 +397,7 @@ model Settings {
   phone         String @default("")
   email         String @default("")
   receiptFooter String @default("Thank you for choosing RAGEN RESORT!")
+  receiptSize   String @default("80mm")
   taxRate       Float  @default(16)
   currency      String @default("KES")
   updatedAt     DateTime @updatedAt

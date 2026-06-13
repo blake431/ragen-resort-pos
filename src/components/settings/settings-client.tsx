@@ -1,14 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/layout/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { updateSettings } from "@/lib/actions/dashboard";
 import { useToast } from "@/hooks/use-toast";
+import { Printer } from "lucide-react";
 
 interface SettingsClientProps {
   settings: {
@@ -17,6 +26,7 @@ interface SettingsClientProps {
     phone: string;
     email: string;
     receiptFooter: string;
+    receiptSize: string;
     taxRate: number;
     currency: string;
   };
@@ -24,6 +34,7 @@ interface SettingsClientProps {
 
 export function SettingsClient({ settings: initial }: SettingsClientProps) {
   const [loading, setLoading] = useState(false);
+  const [receiptSize, setReceiptSize] = useState(initial.receiptSize || "80mm");
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -37,6 +48,7 @@ export function SettingsClient({ settings: initial }: SettingsClientProps) {
         phone: form.get("phone") as string,
         email: form.get("email") as string,
         receiptFooter: form.get("receiptFooter") as string,
+        receiptSize,
         taxRate: Number(form.get("taxRate")),
         currency: form.get("currency") as string,
       });
@@ -50,7 +62,14 @@ export function SettingsClient({ settings: initial }: SettingsClientProps) {
 
   return (
     <div>
-      <PageHeader title="Settings" description="Configure your business settings" />
+      <PageHeader title="Settings" description="Configure your business settings">
+        <Link href="/settings/hardware">
+          <Button variant="outline" size="sm">
+            <Printer className="h-4 w-4 mr-1" />
+            Hardware / Printer
+          </Button>
+        </Link>
+      </PageHeader>
 
       <Card className="max-w-2xl">
         <CardContent className="p-6">
@@ -82,6 +101,21 @@ export function SettingsClient({ settings: initial }: SettingsClientProps) {
                 <Label>Currency</Label>
                 <Input name="currency" defaultValue={initial.currency} />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Receipt Paper Size</Label>
+              <Select value={receiptSize} onValueChange={setReceiptSize}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select receipt width" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="58mm">58mm thermal</SelectItem>
+                  <SelectItem value="80mm">80mm thermal</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Match this to your Bluetooth printer paper width for correct receipt layout.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Receipt Footer Message</Label>

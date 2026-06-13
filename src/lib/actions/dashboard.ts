@@ -48,6 +48,7 @@ export async function updateSettings(data: {
   phone?: string;
   email?: string;
   receiptFooter?: string;
+  receiptSize?: string;
   taxRate?: number;
   currency?: string;
 }) {
@@ -62,6 +63,7 @@ export async function updateSettings(data: {
 
   await logActivity("UPDATE", "Settings", "default");
   revalidatePath("/settings");
+  revalidatePath("/settings/hardware");
   return settings;
 }
 

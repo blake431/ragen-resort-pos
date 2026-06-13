@@ -24,7 +24,8 @@ import { usePOSStore, calculateCartTotals } from "@/store/pos-store";
 import { formatCurrency } from "@/lib/utils";
 import { completeSale, holdSale, getHeldSales, cancelOrder } from "@/lib/actions/products";
 import { getSettings } from "@/lib/actions/dashboard";
-import { Receipt, printReceipt } from "@/components/pos/receipt";
+import { Receipt } from "@/components/pos/receipt";
+import { ReceiptPrintButton } from "@/components/pos/receipt-print-button";
 import { PaymentDialog, type PaymentLineDraft } from "@/components/pos/payment-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useRequireConnection } from "@/hooks/use-require-connection";
@@ -38,7 +39,6 @@ import {
   Play,
   X,
   CreditCard,
-  Printer,
 } from "lucide-react";
 
 interface Product {
@@ -368,16 +368,18 @@ export function POSClient({ products, categories, taxRate }: POSPageProps) {
       </Dialog>
 
       <Dialog open={receiptOpen} onOpenChange={setReceiptOpen}>
-        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto print:max-w-none">
+          <DialogHeader className="print:hidden">
             <DialogTitle className="font-serif text-xl">Receipt</DialogTitle>
           </DialogHeader>
           {completedOrder && settings && (
             <>
               <Receipt order={completedOrder} settings={settings} />
-              <Button variant="gold" className="w-full h-14 text-base touch-target" onClick={printReceipt}>
-                <Printer className="h-5 w-5 mr-2" /> Print Receipt
-              </Button>
+              <ReceiptPrintButton
+                targetId="receipt"
+                receiptSize={settings.receiptSize}
+                className="w-full h-14 text-base touch-target print:hidden"
+              />
             </>
           )}
         </DialogContent>

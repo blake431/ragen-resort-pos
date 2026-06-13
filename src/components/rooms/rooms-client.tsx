@@ -33,6 +33,7 @@ import { Plus, Pencil, Trash2, Receipt, BedDouble, ShoppingCart } from "lucide-r
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { PaymentDialog, PaymentLineDraft } from "@/components/pos/payment-dialog";
 import { RoomSaleReceipt } from "@/components/rooms/room-sale-receipt";
+import { ReceiptPrintButton } from "@/components/pos/receipt-print-button";
 import { BookingStatus, RoomStatus } from "@prisma/client";
 
 interface RoomsClientProps {
@@ -58,6 +59,7 @@ interface RoomsClientProps {
     phone: string;
     receiptFooter: string;
     currency: string;
+    receiptSize: string;
   };
 }
 
@@ -367,7 +369,11 @@ export function RoomsClient({ rooms, folios, settings }: RoomsClientProps) {
                 settings={settings}
               />
               <div className="flex gap-2 print:hidden">
-                <Button variant="gold" className="flex-1" onClick={() => window.print()}>Print Receipt</Button>
+                <ReceiptPrintButton
+                  targetId="room-sale-receipt"
+                  receiptSize={settings.receiptSize}
+                  className="flex-1"
+                />
                 <Button variant="outline" className="flex-1" onClick={() => setSaleReceipt(null)}>Close</Button>
               </div>
             </>

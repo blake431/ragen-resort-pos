@@ -19,6 +19,7 @@ export default async function RoomsPage() {
         phone: settings.phone,
         receiptFooter: settings.receiptFooter,
         currency: settings.currency,
+        receiptSize: settings.receiptSize,
       }}
     />
   );

@@ -91,37 +91,119 @@
   }
 }
 
-/* 80mm thermal receipt (~72mm printable width) */
+/* Thermal receipt — screen preview */
 .receipt-thermal {
-  width: 72mm;
-  max-width: 72mm;
   font-family: "Courier New", Courier, monospace;
   font-size: 11px;
-  line-height: 1.35;
+  line-height: 1.3;
   color: #000;
   background: #fff;
+  margin-left: auto;
+  margin-right: auto;
 }
 
+.receipt-size-58mm .receipt-thermal,
+.receipt-thermal.receipt-size-58mm {
+  width: 48mm;
+  max-width: 48mm;
+}
+
+.receipt-size-80mm .receipt-thermal,
+.receipt-thermal.receipt-size-80mm {
+  width: 72mm;
+  max-width: 72mm;
+}
+
+.receipt-thermal:not(.receipt-size-58mm):not(.receipt-size-80mm) {
+  width: 72mm;
+  max-width: 72mm;
+}
+
+/* Thermal receipt print */
 @media print {
-  @page {
-    size: 80mm auto;
-    margin: 2mm;
+  body.thermal-print-mode {
+    background: #fff !important;
+    color: #000 !important;
   }
 
-  body * {
+  body.thermal-print-mode * {
     visibility: hidden;
   }
 
-  #receipt,
-  #receipt * {
+  body.thermal-print-mode #receipt,
+  body.thermal-print-mode #receipt *,
+  body.thermal-print-mode #room-sale-receipt,
+  body.thermal-print-mode #room-sale-receipt *,
+  body.thermal-print-mode #room-invoice,
+  body.thermal-print-mode #room-invoice *,
+  body.thermal-print-mode #printer-test-receipt,
+  body.thermal-print-mode #printer-test-receipt * {
     visibility: visible;
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
-  #receipt {
+  body.thermal-print-mode #receipt,
+  body.thermal-print-mode #room-sale-receipt,
+  body.thermal-print-mode #room-invoice,
+  body.thermal-print-mode #printer-test-receipt {
     position: absolute;
     left: 0;
     top: 0;
+    padding: 2mm !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+
+  body.thermal-print-mode.receipt-size-58mm #receipt,
+  body.thermal-print-mode.receipt-size-58mm #room-sale-receipt,
+  body.thermal-print-mode.receipt-size-58mm #room-invoice,
+  body.thermal-print-mode.receipt-size-58mm #printer-test-receipt {
+    width: 48mm;
+    max-width: 48mm;
+  }
+
+  body.thermal-print-mode.receipt-size-80mm #receipt,
+  body.thermal-print-mode.receipt-size-80mm #room-sale-receipt,
+  body.thermal-print-mode.receipt-size-80mm #room-invoice,
+  body.thermal-print-mode.receipt-size-80mm #printer-test-receipt {
     width: 72mm;
+    max-width: 72mm;
+  }
+
+  body.thermal-print-mode aside,
+  body.thermal-print-mode header,
+  body.thermal-print-mode nav,
+  body.thermal-print-mode .no-print,
+  body.thermal-print-mode [data-radix-dialog-overlay],
+  body.thermal-print-mode button {
+    display: none !important;
+  }
+
+  body.thermal-print-mode main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
+
+@page {
+  margin: 0;
+}
+
+@media print {
+  body.thermal-print-mode.receipt-size-58mm {
+    @page {
+      size: 58mm auto;
+      margin: 0;
+    }
+  }
+
+  body.thermal-print-mode.receipt-size-80mm {
+    @page {
+      size: 80mm auto;
+      margin: 0;
+    }
   }
 }
 
